@@ -8,7 +8,7 @@ TARG=gongo
 
 # source files in package
 GOFILES=\
-	gongo.go
+	gongo_gtp.go
 
 # test files for this package
 GOTESTFILES=\
