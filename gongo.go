@@ -1,6 +1,7 @@
 package gongo
 
 import (
+	"bytes";
 	"bufio";
 	"fmt";
 	"io";
@@ -64,14 +65,17 @@ type GoRobot interface {
 	// The robot should return a vertex (including pass) and handle captures
 	// automatically. Or it can resign by returning ok=false.
 	GenMove(color Color) (vertex Vertex, ok bool);
+
+	// Returns the robot's current representation of the board. (For debugging.)
+	ShowBoard() Board;
 }
 
 // Types used by the GoRobot interface
 
 type Color bool;
 const (
-	Black = false;
-	White = true;
+	Black = Color(false);
+	White = Color(true);
 )
 
 func ParseColor(input string) (c Color, ok bool) {
@@ -83,9 +87,9 @@ func ParseColor(input string) (c Color, ok bool) {
 }
 
 func (c Color) String() string {
-	switch {
-	case c == White: return "White";
-	case c == Black: return "Black";
+	switch (c) {
+	case White: return "White";
+	case Black: return "Black";
 	}
 	panic("not reachable");
 }
@@ -165,7 +169,59 @@ func (m Move) String() string {
 	return fmt.Sprintf("%v %v", m.Color, m.Vertex);
 }
 
+// A simple representation of a board to be returned by ShowBoard(). A
+// robot should use its own (more efficient) representation internally.
+type Board struct {
+	// the contents of vertex (x,y) are stored at cell[x][y].
+	// The zero row and column aren't used.
+	cell [MaxBoardSize][MaxBoardSize]cell;
+	size int;
+}
+
+func NewBoard(size int) *Board {
+	b := &Board{size: size};
+	for y := 1; y <= size; y++ {
+		for x := 1; x <= size; x++ {
+			b.cell[x][y] = empty;
+		}
+	}
+	return b;
+}
+
+// Sets position at (x,y) to color.
+func (b *Board) Set(x, y int, c Color) {
+	switch {
+	case c == Black: b.cell[x][y] = black;
+	case c == White: b.cell[x][y] = white;
+	default: panic("invalid color");
+	}
+}
+
+func (b Board) String() string {
+	buf := &bytes.Buffer{};
+	for y := b.size; y >= 1 ; y-- {
+		for x := 1; x <= b.size; x++ {
+			buf.WriteString(b.cell[x][y].String());
+		}
+		if y > 1 {
+			buf.WriteString("\n");
+		}
+	}
+	return buf.String();
+}
+
 // === driver internals ===
+
+type cell string; 
+const (
+	empty = cell(".");
+	black = cell("@");
+	white = cell("O");
+)
+
+func (c cell) String() string {
+	return string(c);
+}
 
 var word_regexp = regexp.MustCompile("[^  ]+")
 
@@ -224,6 +280,9 @@ var (
 		"play": handle_play,
 		"protocol_version" : func(req request) response { return success("2") },
 		"quit" : func (req request) response { return success("") },
+		"showboard" : func (req request) response { 
+			return success(req.robot.ShowBoard().String());
+		},
 		"version" : func(req request) response { return success("") },
 
 	};

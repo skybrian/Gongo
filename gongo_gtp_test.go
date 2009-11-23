@@ -21,6 +21,7 @@ name
 play
 protocol_version
 quit
+showboard
 version`);
 }
 
@@ -97,6 +98,32 @@ func TestGenmove_Resign(t *testing.T) {
 	}
 }
 
+func TestShowBoard(t *testing.T) {
+	b := NewBoard(5);
+	b.Set(1, 5, White);
+	b.Set(5, 5, Black);
+	b.Set(4, 4, White);
+	b.Set(5, 2, Black);
+	
+	g := NewFakeRobot();
+	g.send_board = *b;
+	checkCommand(t, g, "showboard",
+`O...@
+...O.
+.....
+....@
+.....`
+);
+}
+
+func TestBoardToString(t *testing.T) {
+	b := NewBoard(3);
+	s := b.String();
+	if s != "...\n...\n..." {
+		t.Error("board printed wrong: " + s);
+	}
+}
+
 func TestParseMove(t *testing.T) {
 	checkMove(t, "b pass", Black, 0, 0);
 	checkMove(t, "w Pass", White, 0, 0);
@@ -116,6 +143,7 @@ type fake_game struct {
 	color Color;
 	send_vertex Vertex;
 	send_ok bool;
+	send_board Board;
 }
 
 func NewFakeRobot() *fake_game {
@@ -143,6 +171,10 @@ func (g *fake_game) Play(value Move) bool {
 func (g *fake_game) GenMove(color Color) (vertex Vertex, ok bool) {
 	g.color = color;
 	return g.send_vertex, g.send_ok;
+}
+
+func (g *fake_game) ShowBoard() Board {
+	return g.send_board;
 }
 
 func checkMove(t *testing.T, input string, expectedColor Color, expectedX int, expectedY int) {
