@@ -99,29 +99,19 @@ func TestGenmove_Resign(t *testing.T) {
 }
 
 func TestShowBoard(t *testing.T) {
-	b := NewBoard(5);
-	b.Set(1, 5, White);
-	b.Set(5, 5, Black);
-	b.Set(4, 4, White);
-	b.Set(5, 2, Black);
-	
-	g := NewFakeRobot();
-	g.send_board = *b;
-	checkCommand(t, g, "showboard",
+	r := NewFakeRobot();
+	r.send_boardSize = 5;
+	r.send_cell[1][5] = White;
+	r.send_cell[5][5] = Black;
+	r.send_cell[4][4] = White;
+	r.send_cell[5][2] = Black;
+	checkCommand(t, r, "showboard",
 `O...@
 ...O.
 .....
 ....@
 .....`
 );
-}
-
-func TestBoardToString(t *testing.T) {
-	b := NewBoard(3);
-	s := b.String();
-	if s != "...\n...\n..." {
-		t.Error("board printed wrong: " + s);
-	}
 }
 
 func TestParseMove(t *testing.T) {
@@ -135,7 +125,7 @@ func TestParseMove(t *testing.T) {
 
 // === end of tests ===
 
-type fake_game struct {
+type fake_robot struct {
 	board_size int;
 	board_cleared bool;
 	komi float;
@@ -143,38 +133,43 @@ type fake_game struct {
 	color Color;
 	send_vertex Vertex;
 	send_ok bool;
-	send_board Board;
+	send_boardSize int;
+	send_cell [MaxBoardSize][MaxBoardSize]Color;
 }
 
-func NewFakeRobot() *fake_game {
-	return &fake_game{send_ok: true};
+func NewFakeRobot() *fake_robot {
+	return &fake_robot{send_ok: true};
 }
 
-func (g *fake_game) SetBoardSize(value int) bool {
-	g.board_size = value;
-	return g.send_ok;
+func (r *fake_robot) SetBoardSize(value int) bool {
+	r.board_size = value;
+	return r.send_ok;
 }
 
-func (g *fake_game) ClearBoard() {
-	g.board_cleared = true;
+func (r *fake_robot) ClearBoard() {
+	r.board_cleared = true;
 }
 
-func (g *fake_game) SetKomi(value float) {
-	g.komi = value;
+func (r *fake_robot) SetKomi(value float) {
+	r.komi = value;
 }
 
-func (g *fake_game) Play(value Move) bool {
-	g.move = value;
-	return g.send_ok;
+func (r *fake_robot) Play(value Move) bool {
+	r.move = value;
+	return r.send_ok;
 }
 
-func (g *fake_game) GenMove(color Color) (vertex Vertex, ok bool) {
-	g.color = color;
-	return g.send_vertex, g.send_ok;
+func (r *fake_robot) GenMove(color Color) (vertex Vertex, ok bool) {
+	r.color = color;
+	return r.send_vertex, r.send_ok;
 }
 
-func (g *fake_game) ShowBoard() Board {
-	return g.send_board;
+func (r *fake_robot) GetBoardSize() int {
+	return r.send_boardSize;
+}
+
+func (r *fake_robot) GetCell(x, y int) Color {
+	return r.send_cell[x][y];
 }
 
 func checkMove(t *testing.T, input string, expectedColor Color, expectedX int, expectedY int) {

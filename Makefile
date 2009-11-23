@@ -8,11 +8,13 @@ TARG=gongo
 
 # source files in package
 GOFILES=\
-	gongo_gtp.go
+	gongo_gtp.go \
+	gongo_robot.go
 
 # test files for this package
 GOTESTFILES=\
-	gongo_gtp_test.go
+	gongo_gtp_test.go \
+	gongo_robot_test.go
 
 # build "main" executable
 main: package

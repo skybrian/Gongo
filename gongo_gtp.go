@@ -14,17 +14,17 @@ import (
 
 // The gongo package handles I/O for Go-playing robots written in Go.
 
-// Go-playing robots are normally implemented as command-line tools that
-// take commands from a controller on stdin and write responses to
-// stdout. The Go Text Protocol (GTP) [1] defines how this should be done. 
-// A robot that implements GTP can be plugged into various useful tools.
-// For example, GoGui [2] implements a user interface that will work with
-// any robot that implements GTP.
+// A Go robot is normally implemented as a command-line tool that
+// takes commands from a controller on stdin and writes responses to
+// stdout. The Go Text Protocol [1] defines how this should be done. 
+// A robot that implements GTP can be plugged into various useful tools,
+// such as GoGui [2], which provides a user interface.
 // [1] http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html
 // [2] http://gogui.sourceforge.net/
 
-// Executes GTP commands until "quit" is received, using the specified robot.
-// Returns nil for quit or non nil for I/O error. 
+// Executes GTP commands using the specified robot.
+// Returns nil after the "quit" command is handled,
+// or non nil for an I/O error. 
 func Run(robot GoRobot, input io.Reader, out io.Writer) os.Error {
 	in := bufio.NewReader(input);
 	for {
@@ -66,16 +66,19 @@ type GoRobot interface {
 	// automatically. Or it can resign by returning ok=false.
 	GenMove(color Color) (vertex Vertex, ok bool);
 
-	// Returns the robot's current representation of the board. (For debugging.)
-	ShowBoard() Board;
+	// debug support (for showboard)
+
+	GetBoardSize() int;
+	GetCell(x, y int) Color;
 }
 
 // Types used by the GoRobot interface
 
-type Color bool;
+type Color int;
 const (
-	Black = Color(false);
-	White = Color(true);
+	Empty = Color(0);
+	Black = Color(1);
+	White = Color(2);
 )
 
 func ParseColor(input string) (c Color, ok bool) {
@@ -83,13 +86,14 @@ func ParseColor(input string) (c Color, ok bool) {
 	case "w","white": return White, true;
 	case "b","black": return Black, true;
 	}
-	return false, false;
+	return Empty, false;
 }
 
 func (c Color) String() string {
 	switch (c) {
 	case White: return "White";
 	case Black: return "Black";
+	case Empty: return "Empty";
 	}
 	panic("not reachable");
 }
@@ -169,47 +173,6 @@ func (m Move) String() string {
 	return fmt.Sprintf("%v %v", m.Color, m.Vertex);
 }
 
-// A simple representation of a board to be returned by ShowBoard(). A
-// robot should use its own (more efficient) representation internally.
-type Board struct {
-	// the contents of vertex (x,y) are stored at cell[x][y].
-	// The zero row and column aren't used.
-	cell [MaxBoardSize][MaxBoardSize]cell;
-	size int;
-}
-
-func NewBoard(size int) *Board {
-	b := &Board{size: size};
-	for y := 1; y <= size; y++ {
-		for x := 1; x <= size; x++ {
-			b.cell[x][y] = empty;
-		}
-	}
-	return b;
-}
-
-// Sets position at (x,y) to color.
-func (b *Board) Set(x, y int, c Color) {
-	switch {
-	case c == Black: b.cell[x][y] = black;
-	case c == White: b.cell[x][y] = white;
-	default: panic("invalid color");
-	}
-}
-
-func (b Board) String() string {
-	buf := &bytes.Buffer{};
-	for y := b.size; y >= 1 ; y-- {
-		for x := 1; x <= b.size; x++ {
-			buf.WriteString(b.cell[x][y].String());
-		}
-		if y > 1 {
-			buf.WriteString("\n");
-		}
-	}
-	return buf.String();
-}
-
 // === driver internals ===
 
 type cell string; 
@@ -280,9 +243,7 @@ var (
 		"play": handle_play,
 		"protocol_version" : func(req request) response { return success("2") },
 		"quit" : func (req request) response { return success("") },
-		"showboard" : func (req request) response { 
-			return success(req.robot.ShowBoard().String());
-		},
+		"showboard" : handle_showboard,
 		"version" : func(req request) response { return success("") },
 
 	};
@@ -354,4 +315,26 @@ func handle_genmove(req request) response {
 	if !ok { return success("resign"); }
 
 	return success(vertex.String());
+}
+
+func handle_showboard(req request) response {
+	if len(req.args) != 0 { return error("wrong number of arguments"); }
+	
+	size := req.robot.GetBoardSize();
+	buf := &bytes.Buffer{};
+	for y := size; y >= 1 ; y-- {
+		for x := 1; x <= size; x++ {
+			color := req.robot.GetCell(x, y);
+			switch color {
+			case Empty: buf.WriteString(".");
+			case White: buf.WriteString("O");
+			case Black: buf.WriteString("@");
+			default: panic("shouldn't happen");
+			}
+		}
+		if y > 1 {
+			buf.WriteString("\n");
+		}
+	}
+	return success(buf.String());
 }
