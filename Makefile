@@ -12,7 +12,7 @@ GOFILES=\
 
 # test files for this package
 GOTESTFILES=\
-	gongo_test.go
+	gongo_gtp_test.go
 
 # build "main" executable
 main: package

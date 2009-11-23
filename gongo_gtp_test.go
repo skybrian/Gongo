@@ -7,18 +7,7 @@ import (
 	"testing";
 )
 
-func TestSimpleCommands(t *testing.T) {
-	checkCommand(t, nil, "protocol_version", "2");	
-	checkCommand(t, nil, "name", "gongo");	
-	checkCommand(t, nil, "version", "");	
-}
-
-func TestKnownCommand(t *testing.T) {
-	checkCommand(t, nil, "known_command version", "true");	
-	checkCommand(t, nil, "known_command asdf", "false");	
-	checkCommand(t, nil, "known_command quit", "true");	
-	checkCommand(t, nil, "known_command known_command", "true");	
-}
+// === GTP driver tests ===
 
 func TestListCommands(t *testing.T) {
 	checkCommand(t, nil, "list_commands",
@@ -33,6 +22,28 @@ play
 protocol_version
 quit
 version`);
+}
+
+func TestKnownCommand(t *testing.T) {
+	checkCommand(t, nil, "known_command version", "true");	
+	checkCommand(t, nil, "known_command asdf", "false");	
+	checkCommand(t, nil, "known_command quit", "true");	
+	checkCommand(t, nil, "known_command known_command", "true");	
+}
+
+func TestSimpleCommands(t *testing.T) {
+	checkCommand(t, nil, "protocol_version", "2");	
+	checkCommand(t, nil, "name", "gongo");	
+	checkCommand(t, nil, "version", "");	
+}
+
+func TestUnknownCommandError(t *testing.T) {
+	checkRun(t, nil, "asdf\nquit\n", "? unknown command\n\n= \n\n");
+}
+
+func TestQuit(t *testing.T) {
+	checkRun(t, nil, "quit\n", "= \n\n");
+	checkRun(t, nil, "# comment\n\nquit\n",  "= \n\n");
 }
 
 func TestBoardSize(t *testing.T) {
@@ -84,15 +95,6 @@ func TestGenmove_Resign(t *testing.T) {
 	if White != g.color {
 		t.Errorf("expected %v but got %v", White, g.color);
 	}
-}
-
-func TestUnknownCommandError(t *testing.T) {
-	checkRun(t, nil, "asdf\nquit\n", "? unknown command\n\n= \n\n");
-}
-
-func TestQuit(t *testing.T) {
-	checkRun(t, nil, "quit\n", "= \n\n");
-	checkRun(t, nil, "# comment\n\nquit\n",  "= \n\n");
 }
 
 func TestParseMove(t *testing.T) {
