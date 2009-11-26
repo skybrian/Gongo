@@ -18,7 +18,7 @@ func (r *robot) ClearBoard() {
 func (r *robot) SetKomi(value float) {
 }
 
-func (r *robot) Play(value Move) bool {
+func (r *robot) Play(color Color, x, y int) bool {
 	return false;
 }
 

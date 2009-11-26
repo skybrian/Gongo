@@ -74,10 +74,9 @@ func TestKomi(t *testing.T) {
 func TestPlay(t *testing.T) {
 	g := NewFakeRobot();
 	checkCommand(t, g, "play white c10", "");
-	expected := Move{White, Vertex{3,10}};
-	if !expected.Equals(g.move) {
-		t.Errorf("expected %v but got %v", expected, g.move);
-	}
+	if White != g.color { t.Error("color mismatch") }
+	if 3 != g.x { t.Error("x mismatch") }
+	if 10 != g.y { t.Error("y mismatch") };
 }
 
 func TestGenmove(t *testing.T) {
@@ -114,13 +113,22 @@ func TestShowBoard(t *testing.T) {
 );
 }
 
-func TestParseMove(t *testing.T) {
-	checkMove(t, "b pass", Black, 0, 0);
-	checkMove(t, "w Pass", White, 0, 0);
-	checkMove(t, "B a1", Black, 1, 1);	
-	checkMove(t, "black H8", Black, 8, 8);
-	checkMove(t, "b j9", Black, 9, 9);
-	checkMove(t, "WHITE T19", White, 19, 19);
+func TestParseColor(t *testing.T) {
+	checkColor(t, "b", Black);
+	checkColor(t, "w", White);
+	checkColor(t, "B", Black);	
+	checkColor(t, "black", Black);
+	checkColor(t, "Black", Black);
+	checkColor(t, "WHITE", White);
+}
+
+func TestParseVertex(t *testing.T) {
+	checkVertex(t, "pass", 0, 0);
+	checkVertex(t, "Pass", 0, 0);
+	checkVertex(t, "a1", 1, 1);	
+	checkVertex(t, "H8", 8, 8);
+	checkVertex(t, "j9", 9, 9);
+	checkVertex(t, "T19", 19, 19);
 }
 
 // === end of tests ===
@@ -129,8 +137,8 @@ type fake_robot struct {
 	board_size int;
 	board_cleared bool;
 	komi float;
-	move Move;
 	color Color;
+	x,y int;
 	send_vertex Vertex;
 	send_ok bool;
 	send_boardSize int;
@@ -154,8 +162,10 @@ func (r *fake_robot) SetKomi(value float) {
 	r.komi = value;
 }
 
-func (r *fake_robot) Play(value Move) bool {
-	r.move = value;
+func (r *fake_robot) Play(color Color, x, y int) bool {
+	r.color = color;
+	r.x = x;
+	r.y = y;
 	return r.send_ok;
 }
 
@@ -172,22 +182,31 @@ func (r *fake_robot) GetCell(x, y int) Color {
 	return r.send_cell[x][y];
 }
 
-func checkMove(t *testing.T, input string, expectedColor Color, expectedX int, expectedY int) {
-	actual, ok := ParseMove(input);
+func checkColor(t *testing.T, input string, expected Color) {
+	actual, ok := ParseColor(input);
 	if !ok {
-		t.Error("Can't parse move:", input);
+		t.Error("Can't parse color:", input);
 		return;
 	}
-	if expectedColor != actual.Color {
+	if expected != actual {
 		t.Error("unexpected color for", input);
 	}
-	if expectedX != actual.Vertex.X {
-		t.Error("unexpected X for", input, "Got:", actual.Vertex.X);	
+}
+
+func checkVertex(t *testing.T, input string, expectedX int, expectedY int) {
+	actual, ok := ParseVertex(input);
+	if !ok {
+		t.Error("Can't parse vertex:", input);
+		return;
 	}
-	if expectedY != actual.Vertex.Y {
-		t.Error("unexpected Y for", input, "Got:", actual.Vertex.Y);	
+	if expectedX != actual.X {
+		t.Error("unexpected X for", input, "Got:", actual.X);	
+	}
+	if expectedY != actual.Y {
+		t.Error("unexpected Y for", input, "Got:", actual.Y);	
 	}
 }
+
 
 func checkCommand(t *testing.T, g GoRobot, input, expected string) {
 	checkRun(t, g, input + "\nquit\n", "= " + expected + "\n\n= \n\n");

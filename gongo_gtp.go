@@ -57,7 +57,9 @@ type GoRobot interface {
 	// Adds a move to the board. Moves can be added in any order, for example
 	// to set up a position or replay a game. The robot should automatically
 	// handle captures. If a move is illegal, return false.
-	Play(move Move) (ok bool);
+	// The x and y coordinates start at 1, where x goes from left to right
+	// and y from bottom to top.
+	Play(c Color, x, y int) (ok bool);
 
 	// Asks the robot to generate a move at the current position for the given
 	// color. The robot may be asked to play either side, regardless of which
@@ -150,41 +152,7 @@ func (v Vertex) String() string {
 	return fmt.Sprintf("%c%v", x_letter, v.Y );
 }
 
-type Move struct {
-	Color Color;
-	Vertex Vertex;
-}
-
-func ParseMove(input string) (m Move, ok bool) {
-	words := strings.Split(input, " ", 0);
-	if len(words) != 2 { return Move{}, false; }
-	color, ok := ParseColor(words[0]);
-	if !ok { return  Move{}, false; }
-	vertex, ok := ParseVertex(words[1]);
-	if !ok { return Move{}, false; }
-	return Move{color, vertex}, true;
-}
-
-func (this Move) Equals(that Move) bool {
-	return this.Color == that.Color && this.Vertex.Equals(that.Vertex);
-}
-
-func (m Move) String() string {
-	return fmt.Sprintf("%v %v", m.Color, m.Vertex);
-}
-
 // === driver internals ===
-
-type cell string; 
-const (
-	empty = cell(".");
-	black = cell("@");
-	white = cell("O");
-)
-
-func (c cell) String() string {
-	return string(c);
-}
 
 var word_regexp = regexp.MustCompile("[^  ]+")
 
@@ -296,10 +264,13 @@ func handle_komi(req request) response {
 func handle_play(req request) response {
 	if len(req.args) != 2 { return error("wrong number of arguments"); }
 
-	move, ok := ParseMove(req.args[0] + " " + req.args[1]);
+	color, ok := ParseColor(req.args[0]);
+	if !ok { return error("syntax error"); }
+	
+	v, ok := ParseVertex(req.args[1]);
 	if !ok { return error("syntax error"); }
 
-	ok = req.robot.Play(move);
+	ok = req.robot.Play(color, v.X, v.Y);
 	if !ok { return error("illegal move"); }
 
 	return success("");
