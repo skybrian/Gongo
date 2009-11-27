@@ -19,6 +19,10 @@ import (
 // stdout. The Go Text Protocol [1] defines how this should be done. 
 // A robot that implements GTP can be plugged into various useful tools,
 // such as GoGui [2], which provides a user interface.
+//
+// (The latest version of the GTP spec is a draft; apparently this was
+// never finalized, but hasn't changed in a while.)
+//
 // [1] http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html
 // [2] http://gogui.sourceforge.net/
 
