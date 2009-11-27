@@ -60,9 +60,16 @@ type robot struct {
 	chainIndex []int; 
 }
 
-// The bit in the board[] array that's temporarily flipped to keep track of visited positions
-// when finding positions in a chain
-const IN_CHAIN_FLAG = 64;
+const (
+	// The bit in the board[] array that's temporarily flipped to keep track of visited positions
+	// while finding all the positions in a chain
+	IN_CHAIN_FLAG = 64;
+
+	// The bit in the move[] array that's flipped to indicate that exactly one stone
+	// was captured in that move. (Used to find simple Ko.)
+    CAPTURED_ONE_FLAG = 1024;
+	MOVE_INDEX_MASK = 1023; // used to get just the index from a cell in the move array.
+)
 
 func (r *robot) SetBoardSize(newSize int) bool {
 	r.boardSize = newSize;
@@ -213,11 +220,23 @@ func (r *robot) makeMove(moveIndex int) int {
 			// illegal move; undo and return
 			r.board[moveIndex] = 0;
 			return -1;
-		} 
+		}
+		r.move[r.moveCount] = moveIndex; r.moveCount++;
+	} else if captures == 1 {
+		// check for simple Ko.
+		lastMove := r.move[r.moveCount - 1];
+		if (lastMove & CAPTURED_ONE_FLAG) != 0 && // previous move captured one stone
+			r.board[lastMove & MOVE_INDEX_MASK] == 0 { // this move captured previous move
+			// found; revert this move
+			r.board[lastMove & MOVE_INDEX_MASK] = enemyStone;
+			r.board[moveIndex] = 0;
+			return -2;
+		}
+		r.move[r.moveCount] = CAPTURED_ONE_FLAG | moveIndex; r.moveCount++;
+	} else {
+		r.move[r.moveCount] = moveIndex; r.moveCount++;
 	}
 
-	// commit to putting stone here
-	r.moveCount++;
 	return captures;
 }
 
