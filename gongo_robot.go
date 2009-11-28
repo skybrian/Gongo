@@ -9,6 +9,8 @@ import (
 	"log"
 )
 
+const DEBUG = true
+
 // === public API ===
 
 func NewRobot(boardSize int) GoRobot {
@@ -18,9 +20,7 @@ func NewRobot(boardSize int) GoRobot {
 	return result;
 }
 
-// === implementation ===
-
-const DEBUG = true
+// === implementation of a Go board ===
 
 // The board format is the same as the Java reference bot,
 // a one-dimensional array of integers:
@@ -71,7 +71,7 @@ func (c cell) toColor() Color {
 	case BLACK: return Black;
 	}
 
-    // happens if we pick up an edge or forget to clear the CELL_IN_CHAIN flag
+    // might happens if we pick up an edge or forget to clear CELL_IN_CHAIN
 	panic("can't convert cell to color: %s", c);
 }
 
@@ -82,19 +82,15 @@ func (c cell) toColor() Color {
 type pt int; 
 
 const (
-	// An invalid point. As a move, this means the player passes.
+	// An invalid point. Interpreted as a move, this means the player passes.
 	PASS pt = 0;
 
-	// A flag on a move indicating that the move captured exactly one stone.
-	// (Used in r.moves to find simple Ko.)
+	// A flag on a recorded move indicating that the move captured exactly one stone.
+	// (Used in r.moves to find simple Kos.)
     ONE_CAPTURE = 1024;
 
 	// A mask to remove the ONE_CAPTURE flag from a move, resulting in a point.
 	MOVE_TO_PT_MASK = 1023;
-)
-
-const (
-	MAX_BOARD_SIZE = 25;
 )
 
 type board struct {
@@ -104,7 +100,8 @@ type board struct {
 
 	cells []cell;
 
-	// Return value for markSurroundedChain. (To avoid allocation and/or copy in loops.) 
+	// A return value of markSurroundedChain.
+	// (Stored here to avoid allocations and/or copies in loops.) 
 	chainPoints []pt; 
 }
 
@@ -117,7 +114,7 @@ func (b *board) clearBoard(newSize int) {
 	b.dirOffset[3] = pt(-b.stride); // down
 	
 	rowCount := newSize + 2;
-	b.cells = make([]cell, rowCount * b.stride + 1); // 1 extra for diagonal move
+	b.cells = make([]cell, rowCount * b.stride + 1); // 1 extra for diagonal move to edge
 
 	// fill entire array with board edge
 	for i := 0; i < len(b.cells); i++ {
