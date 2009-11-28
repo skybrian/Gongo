@@ -6,18 +6,36 @@ package gongo
 // http://groups.google.com/group/computer-go-archive/browse_thread/thread/bda08b9c37f0803e/8cc424b0fb1b6fe0
 
 import (
-	"log"
+	"log";
+	"rand";
 )
 
-const DEBUG = true
+const DEBUG = true;
 
 // === public API ===
 
+type Randomness interface {
+	Intn(n int) int;
+}
+
+var defaultRandomness = rand.New(rand.NewSource(1));
+
+type Config struct {
+	BoardSize int;
+	Randomness Randomness;
+}
+
 func NewRobot(boardSize int) GoRobot {
+	config := Config{BoardSize: boardSize, Randomness: defaultRandomness};
+	return NewConfiguredRobot(config);
+}
+
+func NewConfiguredRobot(config Config) GoRobot {
 	result := new(robot);
 	result.board = new(board);
-	result.SetBoardSize(boardSize);
-	return result;
+	result.randomness = config.Randomness;
+	result.SetBoardSize(config.BoardSize);
+	return result;	
 }
 
 // === implementation of a Go board ===
@@ -99,10 +117,11 @@ type board struct {
 	dirOffset [4]pt; // amount to add to a pt to move in each cardinal direction
 
 	cells []cell;
+	boardPoints []pt; // List of all points on the board.
+	
+	// Temporary variables to avoid GC:
 
-	// A return value of markSurroundedChain.
-	// (Stored here to avoid allocations and/or copies in loops.) 
-	chainPoints []pt; 
+	chainPoints []pt; // return value of markSurroundedChain
 }
 
 func (b *board) clearBoard(newSize int) {
@@ -115,6 +134,7 @@ func (b *board) clearBoard(newSize int) {
 	
 	rowCount := newSize + 2;
 	b.cells = make([]cell, rowCount * b.stride + 1); // 1 extra for diagonal move to edge
+	b.boardPoints = make([]pt, b.boardSize * b.boardSize);
 
 	// fill entire array with board edge
 	for i := 0; i < len(b.cells); i++ {
@@ -122,17 +142,27 @@ func (b *board) clearBoard(newSize int) {
 	}
 	
 	// set all playable points to empty
+	boardPointsAdded := 0;
 	for y := 1; y <= b.boardSize; y++ {
 		for x := 1; x <= b.boardSize; x++ {
-			b.cells[b.makePt(x,y)] = EMPTY;
+			thisPt := b.makePt(x,y);
+			b.cells[thisPt] = EMPTY;
+			b.boardPoints[boardPointsAdded] = thisPt;
+			boardPointsAdded++; 
 		}
 	}
 
-	b.chainPoints = make([]pt, newSize * newSize);
+	b.chainPoints = make([]pt, len(b.boardPoints));
 }
 
 func (b *board) makePt(x,y int) pt {
 	return pt(y * b.stride + x);	
+}
+
+func (b *board) getCoords(p pt) (x,y int) {
+	y = int(p) / b.stride;
+	x = int(p) % b.stride;
+	return;
 }
 
 // Given any point in a chain with no liberties, marks all the cells in
@@ -199,7 +229,7 @@ func (b *board) capture(target pt) (chainCount int) {
 // Given any occupied point, returns true if it has any liberties.
 // (Used for testing suicide.)
 // Precondition: same as b.markSurroundedChain
-func (b *board) haveLiberties(target pt) bool {
+func (b *board) hasLiberties(target pt) bool {
 	chainCount := b.markSurroundedChain(target);
 	if chainCount == 0 {
 		return true;
@@ -219,6 +249,9 @@ type robot struct {
 	// list of moves in this game
 	moves []pt; 
 	moveCount int;
+
+	candidates []pt; // moves to choose from; used in GenMove.
+	randomness Randomness;
 }
 
 // === implementation of GoRobot interface ===
@@ -228,6 +261,8 @@ func (r *robot) SetBoardSize(newSize int) bool {
 
 	// assumes no game lasts longer than it would take to fill the board at four times (plus some extra)
 	r.moves = make([]pt, len(r.cells) * 4); 
+
+	r.candidates = make([]pt, len(r.boardPoints));
 
 	return true;
 }
@@ -240,18 +275,24 @@ func (r *robot) SetKomi(value float) {
 }
 
 func (r *robot) Play(color Color, x, y int) bool {
-	if x<1 || x>r.boardSize || y<1 || y>r.boardSize || !(color == White || color == Black) {
+	if (x<1 || y <1) && !(x==0 && y==0) {
 		return false;
 	}
-	move := r.makePt(x, y);
+	if x>r.boardSize || y>r.boardSize || !(color == White || color == Black) {
+		return false;
+	}
 
 	friendlyStone := cell(2 - (r.moveCount & 1));
 	if (friendlyStone != colorToCell(color)) {
-		// GTP protocol allows two moves by same side, but this engine doesn't.
-		return false; 
+		// GTP protocol allows two moves by same side; treat as if the
+		// other player passed.
+		ok  := r.Play(color.GetOpponent(), 0, 0);
+		if !ok {
+			return false;
+		}
 	}
-
-	result := r.makeMove(move);
+	
+	result := r.makeMove(r.makePt(x, y));
 	if DEBUG && result > 0 {
 		log.Stderrf("captured: %v", result)
 	}
@@ -259,6 +300,34 @@ func (r *robot) Play(color Color, x, y int) bool {
 }
 
 func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
+	// find unoccupied points
+	candidateCount := 0;
+	for _, thisPt := range r.boardPoints {
+		if r.cells[thisPt] == EMPTY {
+			r.candidates[candidateCount] = thisPt;
+			candidateCount++;
+		}
+	}
+	
+	// try each move at random
+	for triedCount := 0; triedCount < candidateCount; triedCount++ {
+		// choose random move
+		swapIndex := triedCount + r.randomness.Intn(candidateCount - triedCount);
+		thisPt := r.candidates[triedCount];
+		if swapIndex > triedCount {
+			r.candidates[triedCount] = r.candidates[swapIndex];
+			r.candidates[swapIndex] = thisPt;
+			thisPt = r.candidates[triedCount];
+		}
+		if r.isLegalMove(thisPt) {
+			r.makeMove(thisPt);
+			x, y = r.getCoords(thisPt);
+			result = Played;
+			return;
+		}
+	}
+
+	// no move found
 	return 0, 0, Passed;
 }
 
@@ -271,6 +340,17 @@ func (r *robot) GetCell(x, y int) Color {
 }
 
 // === internal methods ===
+
+func (r *robot) isLegalMove(move pt) (result bool) {
+	if r.cells[move] != EMPTY {
+		return false;
+	}
+	friendlyStone := cell(2 - (r.moveCount & 1));
+	r.cells[move] = friendlyStone;
+	result = r.hasLiberties(move);
+	r.cells[move] = EMPTY;
+	return result;
+}
 
 // Direct translation of move function from Java reference bot:
     /* --------------------------------------------------------
@@ -319,7 +399,7 @@ func (r *robot) makeMove(move pt) int {
 	
 	if captures == 0 {
 		// check for suicide
-		if !r.haveLiberties(move) {
+		if !r.hasLiberties(move) {
 			if DEBUG { log.Stderrf("disallow suicide"); }
 			// illegal move; undo and return
 			r.cells[move] = EMPTY;

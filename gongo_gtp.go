@@ -50,6 +50,9 @@ func Run(robot GoRobot, input io.Reader, out io.Writer) os.Error {
 	return nil;
 }
 
+// GTP protocol doesn't support larger than 25x25
+const MaxBoardSize = 25;
+
 type GoRobot interface {
 	// Attempts to change the board size. If the robot doesn't support the
 	// new size, return false. (In any case, board sizes above 25 aren't
@@ -96,13 +99,21 @@ func ParseColor(input string) (c Color, ok bool) {
 	return Empty, false;
 }
 
+func (c Color) GetOpponent() Color {
+	switch c {
+	case Black: return White;
+	case White: return Black;
+	}
+	panic("can't get opponent for %v", c);
+}
+
 func (c Color) String() string {
-	switch (c) {
+	switch c {
 	case White: return "White";
 	case Black: return "Black";
 	case Empty: return "Empty";
 	}
-	panic("not reachable");
+	panic("invalid color");
 }
 
 type MoveResult int;
@@ -112,7 +123,14 @@ const (
 	Resigned MoveResult = 2;
 )
 
-const MaxBoardSize = 25;
+func (m MoveResult) String() string {
+	switch m {
+	case Played: return "Played";
+	case Passed: return "Passed";
+	case Resigned: return "Resigned";
+	}
+	panic("invalid move result");
+}
 
 // === driver implementation ===
 

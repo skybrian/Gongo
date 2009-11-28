@@ -101,9 +101,36 @@ func TestDisallowSimpleKo(t *testing.T) {
  @O.O`);
 }
 
-func TestFindMove(t *testing.T) {
-	//r := NewRobot(1);
+func TestPlaySameColorTwice(t *testing.T) {
+	r := NewRobot(3);
+	playLegal(t, r, Black, 1, 1,
+`...
+ ...
+ @..`);
+	playLegal(t, r, Black, 2, 1,
+`...
+ ...
+ @@.`);
 }
+
+func TestPlayByPassing(t *testing.T) {
+	r := NewRobot(3);
+	playLegal(t, r, Black, 0, 0,
+`...
+ ...
+ ...`);	
+}
+
+func TestFindPass(t *testing.T) {
+	r := NewRobot(1);
+	checkGenPass(t, r, Black, `.`);
+}
+
+func TestFindMove(t *testing.T) {
+	r := NewRobot(2);
+	checkGenAnyMove(t, r, Black);
+}
+
 
 // == end of tests ===
 
@@ -122,6 +149,32 @@ func playIllegal(t *testing.T, r GoRobot, c Color, x, y int, expectedBoard strin
 	}
 	checkBoard(t, r, expectedBoard);
 }
+
+func checkGenPass(t *testing.T, r GoRobot, c Color, expectedBoard string) {
+	x, y, result := r.GenMove(c);
+	if result != Passed {
+		t.Errorf("didn't generate a pass for %v; got %v (%v,%v)", c, result, x, y);
+	}
+	checkBoard(t, r, expectedBoard);
+}
+
+func checkGenAnyMove(t *testing.T, r GoRobot, colorToPlay Color) {
+	x, y, result := r.GenMove(colorToPlay);
+	if result != Played {
+		t.Errorf("didn't generate a move for %v; got %v", colorToPlay, result);
+		return;
+	}
+	size := r.GetBoardSize();
+	if x<1 || x>size || y<1 || y>size {
+		t.Errorf("didn't generate a move on the board; got: (%v,%v)", x, y);
+	} else {
+		cellColor := r.GetCell(x, y);
+		if cellColor != colorToPlay {
+			t.Errorf("played cell doesn't contain stone; got: %v", cellColor);
+		} 
+	}
+}
+
 
 func checkBoard(t *testing.T, r GoRobot, expectedBoard string) {
 	expected := trimBoard(expectedBoard);
