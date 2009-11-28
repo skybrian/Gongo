@@ -1,105 +1,206 @@
 package gongo
 
-import (
-	"log"
-)
-
-const DEBUG = true
-
 // A reimplementation in Go of the Java reference robot by Don Dailey
 //
 // http://cgos.boardspace.net/public/javabot.zip
 // http://groups.google.com/group/computer-go-archive/browse_thread/thread/bda08b9c37f0803e/8cc424b0fb1b6fe0
-//
-// The board format is the same as the Java reference bot:
-    /*
-      note:  The board is a 1 dimension array of integers which
-             can be viewd like this (example uses 3x3 board):
 
-	     4 4 4 4 
-	     4 0 0 0
-	     4 0 0 0
-	     4 0 0 0
-	     4 4 4 4 4
+import (
+	"log"
+)
 
-	     where 0 -> empty legal point
-	           1 -> white stone
-		   2 -> black stone
-		   4 -> board edge
-
-             One extra element appended so that diagonal eye
-	     test for lower right corner does not cause array
-	     overflow error.
-     */
-// (Above description copied from Position.java.)
-
-// Note that x=y=1 in the GoRobot interface corresponds to A1 in GTP, which is in the
-// lower left, but in the above diagram it's in the upper left.
-// (But this doesn't actually matter.)
+// === public API ===
 
 func NewRobot(boardSize int) GoRobot {
 	result := new(robot);
+	result.board = new(board);
 	result.SetBoardSize(boardSize);
 	return result;
 }
 
-type robot struct {
+// === implementation ===
 
-	boardSize int;
-	rowWidth int; // boardSize + 1; accounts for barrier column
-	board []int;
+const DEBUG = true
 
-	// position of each move in this game; 0=pass, otherwise index into board.
-	move []int; 
-	moveCount int; // number of moves made so far
+// The board format is the same as the Java reference bot,
+// a one-dimensional array of integers:
+//
+//  X axis (from 1) ->
+//
+//	4 4 4 4 4
+//	4 0 0 0
+//  4 0 0 0     ^
+//  4 0 0 0     |
+//  4 4 4 4   Y axis (from 1)
+//
+//  array index = Y * (board size + 1) + X
+//   
+//  A1 = (X=1, Y=1) = board size + 2
+//
+// Neighboring cells can be found by adding a fixed offset to an array index.
+// To make board edges easy to detect, the zero row and column aren't used,
+// and all cells not in use are filled with EDGE. (The array is made big enough
+// to ensure that a diagonal move from the top-right corner won't result in
+// going off the end of the array.)
 
-	dirOffset []int; // how much to add to an index to move right, left, up, down
-
-	// A temporary list of indexes into board[] that are part of a chain being followed. 
-	// (Stored here to avoid allocation in loops; it would normally be a local variable.)
-	chainIndex []int; 
-}
+// A cell specified the contents of one position on the board.
+type cell int;
 
 const (
-	// The bit in the board[] array that's temporarily flipped to keep track of visited positions
-	// while finding all the positions in a chain
-	IN_CHAIN_FLAG = 64;
+	EMPTY cell = 0;
+	WHITE cell = 1;
+	BLACK cell = 2;
+	EDGE cell = 4;
 
-	// The bit in the move[] array that's flipped to indicate that exactly one stone
-	// was captured in that move. (Used to find simple Ko.)
-    CAPTURED_ONE_FLAG = 1024;
-	MOVE_INDEX_MASK = 1023; // used to get just the index from a cell in the move array.
+	// A temporary flag that's set on a cell to indicate that it's part of a chain.
+	CELL_IN_CHAIN = 64;
 )
 
-func (r *robot) SetBoardSize(newSize int) bool {
-	r.boardSize = newSize;
-	r.rowWidth = newSize + 1;
-	rowCount := newSize + 2;
-	r.board = make([]int, r.rowWidth * rowCount + 1);
+func colorToCell(c Color) cell {
+	switch c {
+	case White: return WHITE;
+	case Black: return BLACK;
+	}
+	panic("illegal color: %v", c);
+}
+
+func (c cell) toColor() Color {
+	switch c {
+	case EMPTY: return Empty;
+	case WHITE: return White;
+	case BLACK: return Black;
+	}
+
+    // happens if we pick up an edge or forget to clear the CELL_IN_CHAIN flag
+	panic("can't convert cell to color: %s", c);
+}
+
+// A pt represents either a point on the Go board or a move to be made on the
+// board. When interpreted as a point, it's the index into r.moves[] to get the
+// cell at that point. When interpreted as a move, it implies that a stone
+// of the current player's color was placed at that cell.
+type pt int; 
+
+const (
+	// An invalid point that's interpreted as passing as a move.
+	PASS pt = 0;
+
+	// A flag used in r.moves to indicate that a move captured exactly one stone.
+	// (Used to find simple Ko.)
+    ONE_CAPTURE = 1024;
+
+	// converts a move stored in r.moves to an index into r.board
+	MOVE_TO_PT_MASK = 1023;
+)
+
+const (
+	MAX_BOARD_SIZE = 25;
+	// includes barrier column, 2 barrier rows, and 1 more for top right diagonal neighbor.
+	MAX_CELLS = (MAX_BOARD_SIZE + 1) * (MAX_BOARD_SIZE + 2) + 1; 
+)
+
+type board struct {
+	boardSize int;
+	stride int; // boardSize + 1 to account for barrier column
+	dirOffset [4]int; // amount to add to go in each cardinal direction
+
+	cells [MAX_CELLS]cell;
+
+	// A temporary list of pts that are part of a chain being followed. 
+	// (Stored here to avoid allocation in loops; it would normally be a local variable.)
+	chainPoints []pt; 
+}
+
+func (b *board) clearBoard(newSize int) {
+	b.boardSize = newSize;
+	b.stride = newSize + 1;
+	b.dirOffset[0] = 1; // right
+	b.dirOffset[1] = -1; // left
+	b.dirOffset[2] = b.stride; // up
+	b.dirOffset[3] = -b.stride; // down
 	
 	// fill entire array with board edge
-	for i := 0; i < len(r.board); i++ {
-		r.board[i] = 4;
+	for i := 0; i < len(b.cells); i++ {
+		b.cells[i] = EDGE;
 	}
 	
-	// set all playable points to unoccupied
-	for y := 1; y <= r.boardSize; y++ {
-		for x := 1; x <= r.boardSize; x++ {
-			r.board[y * r.rowWidth + x] = 0;
+	// set all playable points to empty
+	for y := 1; y <= b.boardSize; y++ {
+		for x := 1; x <= b.boardSize; x++ {
+			b.cells[b.makePt(x,y)] = EMPTY;
 		}
 	}
+}
+
+func (b *board) makePt(x,y int) pt {
+	return pt(y * b.stride + x);	
+}
+
+// Direct translation of capture() function:
+    /* ---------------------------------------------------
+       capture() - For a given target this method removes
+       all stones belonging to target color in same chain
+       and returns the number of stones removed.
+       --------------------------------------------------- */
+// If the group turns out not to be captured, cleans up
+// and returns 0.
+func (b *board) capture(target pt) int {
+	chainColor := b.cells[target];
+	chainCount := 0;
+	
+	b.chainPoints[chainCount] = target; chainCount++;
+	b.cells[target] |= CELL_IN_CHAIN;
+	
+	// Invariants:
+	// - Points between 0 and visitIndex-1 have had all their neighbors visited.
+	// - Points between visitIndex and chainCount are points that still need to be visited.
+	for visitIndex := 0; visitIndex < chainCount; visitIndex++ {
+		currentIndex := b.chainPoints[visitIndex];
+
+		for dirIndex := 0; dirIndex < 4; dirIndex++ {
+			neighborIndex := currentIndex + pt(b.dirOffset[dirIndex]);
+		
+			if b.cells[neighborIndex] == 0 {
+				// Found a liberty, so this isn't a capture. Revert marks and return.
+				for i := 0; i < chainCount; i++ {
+					b.cells[ b.chainPoints[i] ] ^= CELL_IN_CHAIN;
+				}
+				return 0;
+			}
+		
+			if b.cells[neighborIndex] == chainColor {
+				// same color and not marked, so add to chain
+				b.chainPoints[chainCount] = neighborIndex; chainCount++;
+				b.cells[neighborIndex] |= CELL_IN_CHAIN;
+			}
+	    }
+	}
+	
+	// Postcondition: visited all points in the chain without finding a liberty.
+	// Remove the stones from the board.
+	for i := 0; i < chainCount; i++ {
+		b.cells[ b.chainPoints[i] ] = 0;
+	}
+	return chainCount;
+}
+
+
+type robot struct {
+	*board;
+
+	// list of moves in this game
+	moves []pt; 
+
+}
+
+// === implementation of GoRobot interface ===
+
+func (r *robot) SetBoardSize(newSize int) bool {
+	r.clearBoard(newSize);
 
 	// assumes no game lasts longer than it would take to fill the board at four times (plus some extra)
-	r.move = make([]int, len(r.board) * 4); 
-	r.moveCount = 0;
-
-	r.dirOffset = make([]int, 4);
-	r.dirOffset[0] = 1; // right
-	r.dirOffset[1] = -1; // left
-	r.dirOffset[2] = r.rowWidth; // up
-	r.dirOffset[3] = -r.rowWidth; // down
-
-	r.chainIndex = make([]int, r.boardSize * r.boardSize + 2);
+	r.moves = make([]pt, 0, len(r.cells) * 4); 
+	r.chainPoints = make([]pt, r.boardSize * r.boardSize + 2);
 
 	return true;
 }
@@ -115,10 +216,10 @@ func (r *robot) Play(color Color, x, y int) bool {
 	if x<1 || x>r.boardSize || y<1 || y>r.boardSize || !(color == White || color == Black) {
 		return false;
 	}
-	moveIndex := r.coordsToIndex(x, y);
+	moveIndex := r.makePt(x, y);
 
-	friendlyStone := 2 - (r.moveCount & 1);
-	if (friendlyStone != colorToStone(color)) {
+	friendlyStone := cell(2 - (len(r.moves) & 1));
+	if (friendlyStone != colorToCell(color)) {
 		// GTP protocol allows two moves by same side, but this engine doesn't.
 		return false; 
 	}
@@ -139,32 +240,10 @@ func (r *robot) GetBoardSize() int {
 }
 
 func (r *robot) GetCell(x, y int) Color {
-	return stoneToColor(r.board[r.coordsToIndex(x, y)]);
+	return r.cells[r.makePt(x, y)].toColor();
 }
 
-// === end of public methods ===
-
-// input is 1-based indexes (as passed to GoRobot)
-func (r *robot) coordsToIndex(x,y int) int {
-	return y * r.rowWidth + x;	
-}
-
-func colorToStone(c Color) int {
-	switch c {
-	case White: return 1;
-	case Black: return 2;
-	}
-	panic("illegal color: %v", c);
-}
-
-func stoneToColor(c int) Color {
-	switch c {
-	case 0: return Empty;
-	case 1: return White;
-	case 2: return Black;
-	}
-	panic("illegal board value: %s", c);
-}
+// === internal methods ===
 
 // Direct translation of move function from Java reference bot:
     /* --------------------------------------------------------
@@ -183,109 +262,60 @@ func stoneToColor(c int) Color {
             0 - non-capture move
 	    n > 0  - number of stones captured
        -------------------------------------------------------- */
-func (r *robot) makeMove(moveIndex int) int {
-	friendlyStone := 2 - (r.moveCount & 1);
+func (r *robot) makeMove(move pt) int {
+	friendlyStone  := cell(2 - (len(r.moves) & 1));
 	enemyStone := friendlyStone ^ 3;
 	
-	if moveIndex == 0 {
+	if move == 0 {
 		// this is a pass
-		r.move[r.moveCount] = 0;
-		r.moveCount++;
+		r.moves = r.moves[0:len(r.moves)+1];
+		r.moves[len(r.moves) - 1] = 0;
 		return 0;
 	}
 
-	if r.board[moveIndex] != 0 {
+	if r.cells[move] != 0 {
 		// illegal move: occupied
 		if DEBUG { log.Stderrf("disallow occupied"); }
 		return -3;
 	}
 	
 	// place stone, but don't commit to it yet
-	r.board[moveIndex] = friendlyStone;
+	r.cells[move] = friendlyStone;
 
-	// handle any captures
+	// find any captures and remove them from the board
 	captures := 0;
 	for direction := 0; direction < 4; direction++ {
-	    neighborIndex := moveIndex + r.dirOffset[direction];
-	    if (r.board[neighborIndex] == enemyStone) {
+	    neighborIndex := move + pt(r.dirOffset[direction]);
+	    if (r.cells[neighborIndex] == enemyStone) {
 			// see if we can capture the chain with this neighbor
 			captures += r.capture(neighborIndex);
 	    }
 	}
-
+	
 	if captures == 0 {
 		// check for suicide
-		if !r.haveLiberties(moveIndex) {
+		if !r.haveLiberties(move) {
 			if DEBUG { log.Stderrf("disallow suicide"); }
 			// illegal move; undo and return
-			r.board[moveIndex] = 0;
+			r.cells[move] = EMPTY;
 			return -1;
 		}
-		r.move[r.moveCount] = moveIndex; r.moveCount++;
 	} else if captures == 1 {
 		// check for simple Ko.
-		lastMove := r.move[r.moveCount - 1];
-		if (lastMove & CAPTURED_ONE_FLAG) != 0 && // previous move captured one stone
-			r.board[lastMove & MOVE_INDEX_MASK] == 0 { // this move captured previous move
-			// found; revert this move
-			r.board[lastMove & MOVE_INDEX_MASK] = enemyStone;
-			r.board[moveIndex] = 0;
+		lastMove := r.moves[len(r.moves) - 1];
+		if (lastMove & ONE_CAPTURE) != 0 && // previous move captured one stone
+			r.cells[lastMove & MOVE_TO_PT_MASK] == EMPTY { // this move captured previous move
+			// found a Ko; revert the capture
+			r.cells[lastMove & MOVE_TO_PT_MASK] = enemyStone;
+			r.cells[move] = EMPTY;
 			return -2;
 		}
-		r.move[r.moveCount] = CAPTURED_ONE_FLAG | moveIndex; r.moveCount++;
-	} else {
-		r.move[r.moveCount] = moveIndex; r.moveCount++;
+		move = ONE_CAPTURE | move;
 	}
 
+	r.moves = r.moves[0:len(r.moves) + 1];
+	r.moves[len(r.moves) - 1] = move;
 	return captures;
-}
-
-// Direct translation of capture() function:
-    /* ---------------------------------------------------
-       capture() - For a given target this method removes
-       all stones belonging to target color in same chain
-       and returns the number of stones removed.
-       --------------------------------------------------- */
-// If the group turns out not to be captured, cleans up
-// and returns 0.
-func (r *robot) capture(targetIndex int) int {
-	color := r.board[targetIndex];
-	chainCount := 0;
-	
-	r.chainIndex[chainCount] = targetIndex; chainCount++;
-	r.board[targetIndex] |= IN_CHAIN_FLAG;
-	
-	// Invariants:
-	// - Points between 0 and visitIndex-1 have had all their neighbors visited.
-	// - Points between visitIndex and chainCount are points that still need to be visited.
-	for visitIndex := 0; visitIndex < chainCount; visitIndex++ {
-		currentIndex := r.chainIndex[visitIndex];
-
-		for dirIndex := 0; dirIndex < 4; dirIndex++ {
-			neighborIndex := currentIndex + r.dirOffset[dirIndex];
-		
-			if r.board[neighborIndex] == 0 {
-				// Found a liberty, so this isn't a capture. Revert marks and return.
-				for i := 0; i < chainCount; i++ {
-					r.board[ r.chainIndex[i] ] ^= IN_CHAIN_FLAG;
-				}
-				return 0;
-			}
-		
-			if r.board[neighborIndex] == color {
-				// same color and not marked, so add to chain
-				r.chainIndex[chainCount] = neighborIndex; chainCount++;
-				r.board[neighborIndex] |= IN_CHAIN_FLAG;
-			}
-	    }
-	}
-	
-	// Postcondition: visited all points in the chain without finding a liberty.
-	// Remove the stones from the board.
-	for i := 0; i < chainCount; i++ {
-		r.board[ r.chainIndex[i] ] = 0;
-	}
-	return chainCount;
 }
 
 // Direct translation of gotLibs function:
@@ -294,34 +324,34 @@ func (r *robot) capture(targetIndex int) int {
        group has at least 1 liberty.    Used for testing
        suicide. 
        ------------------------------------------------- */
-func (r *robot) haveLiberties(targetIndex int) bool {
-	color := r.board[targetIndex];
+func (r *robot) haveLiberties(targetIndex pt) bool {
+	color := r.cells[targetIndex];
 	chainCount := 0;
 	
-	r.chainIndex[chainCount] = targetIndex; chainCount++;
-	r.board[targetIndex] |= IN_CHAIN_FLAG;
+	r.chainPoints[chainCount] = targetIndex; chainCount++;
+	r.cells[targetIndex] |= CELL_IN_CHAIN;
 	
 	// Invariants:
 	// - Points between 0 and visitIndex-1 have had all their neighbors visited.
 	// - Points between visitIndex and chainCount are points that still need to be visited.
 	for visitIndex := 0; visitIndex < chainCount; visitIndex++ {
-		currentIndex := r.chainIndex[visitIndex];
+		currentIndex := r.chainPoints[visitIndex];
 
 		for dirIndex := 0; dirIndex < 4; dirIndex++ {
-			neighborIndex := currentIndex + r.dirOffset[dirIndex];
+			neighborIndex := currentIndex + pt(r.dirOffset[dirIndex]);
 		
-			if r.board[neighborIndex] == 0 {
+			if r.cells[neighborIndex] == 0 {
 				// unoccupied, so this isn't a suicide. Revert marks and return.
 				for i := 0; i < chainCount; i++ {
-					r.board[ r.chainIndex[i] ] ^= IN_CHAIN_FLAG;
+					r.cells[ r.chainPoints[i] ] ^= CELL_IN_CHAIN;
 				}
 				return true;
 			}
 		
-			if r.board[neighborIndex] == color {
+			if r.cells[neighborIndex] == color {
 				// same color and not marked, so add to chain
-				r.chainIndex[chainCount] = neighborIndex; chainCount++;
-				r.board[neighborIndex] |= IN_CHAIN_FLAG;
+				r.chainPoints[chainCount] = neighborIndex; chainCount++;
+				r.cells[neighborIndex] |= CELL_IN_CHAIN;
 			}
 	    }
 	}
@@ -330,7 +360,7 @@ func (r *robot) haveLiberties(targetIndex int) bool {
 
 	// Revert marked positions
 	for i := 0; i < chainCount; i++ {
-		r.board[ r.chainIndex[i] ] ^= IN_CHAIN_FLAG;
+		r.cells[ r.chainPoints[i] ] ^= CELL_IN_CHAIN;
 	}
 	return false;	
 }
