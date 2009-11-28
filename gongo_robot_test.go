@@ -101,6 +101,10 @@ func TestDisallowSimpleKo(t *testing.T) {
  @O.O`);
 }
 
+func TestFindMove(t *testing.T) {
+	//r := NewRobot(1);
+}
+
 // == end of tests ===
 
 func playLegal(t *testing.T, r GoRobot, c Color, x, y int, expectedBoard string) {

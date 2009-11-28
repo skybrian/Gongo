@@ -81,16 +81,27 @@ func TestPlay(t *testing.T) {
 
 func TestGenmove(t *testing.T) {
 	g := NewFakeRobot();
-	g.send_vertex = Vertex{3,10};
+	g.send_x = 3;
+	g.send_y = 10;
+	g.send_moveResult = Played;
 	checkCommand(t, g, "genmove black", "C10");
 	if Black != g.color {
 		t.Errorf("expected %v but got %v", Black, g.color);
 	}
 }
 
+func TestGenmove_Passed(t *testing.T) {
+	g := NewFakeRobot();
+	g.send_moveResult = Passed;
+	checkCommand(t, g, "genmove white", "pass");
+	if White != g.color {
+		t.Errorf("expected %v but got %v", White, g.color);
+	}
+}
+
 func TestGenmove_Resign(t *testing.T) {
 	g := NewFakeRobot();
-	g.send_ok = false;
+	g.send_moveResult = Resigned;
 	checkCommand(t, g, "genmove white", "resign");
 	if White != g.color {
 		t.Errorf("expected %v but got %v", White, g.color);
@@ -139,7 +150,9 @@ type fake_robot struct {
 	komi float;
 	color Color;
 	x,y int;
-	send_vertex Vertex;
+	send_x int;
+	send_y int;
+	send_moveResult MoveResult;
 	send_ok bool;
 	send_boardSize int;
 	send_cell [MaxBoardSize][MaxBoardSize]Color;
@@ -169,9 +182,9 @@ func (r *fake_robot) Play(color Color, x, y int) bool {
 	return r.send_ok;
 }
 
-func (r *fake_robot) GenMove(color Color) (vertex Vertex, ok bool) {
+func (r *fake_robot) GenMove(color Color) (x, y int, result MoveResult) {
 	r.color = color;
-	return r.send_vertex, r.send_ok;
+	return r.send_x, r.send_y, r.send_moveResult;
 }
 
 func (r *fake_robot) GetBoardSize() int {
@@ -194,16 +207,16 @@ func checkColor(t *testing.T, input string, expected Color) {
 }
 
 func checkVertex(t *testing.T, input string, expectedX int, expectedY int) {
-	actual, ok := ParseVertex(input);
+	x, y, ok := stringToVertex(input);
 	if !ok {
 		t.Error("Can't parse vertex:", input);
 		return;
 	}
-	if expectedX != actual.X {
-		t.Error("unexpected X for", input, "Got:", actual.X);	
+	if expectedX != x {
+		t.Error("unexpected X for", input, "Got:", x);	
 	}
-	if expectedY != actual.Y {
-		t.Error("unexpected Y for", input, "Got:", actual.Y);	
+	if expectedY != y {
+		t.Error("unexpected Y for", input, "Got:", y);	
 	}
 }
 

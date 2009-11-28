@@ -258,8 +258,8 @@ func (r *robot) Play(color Color, x, y int) bool {
 	return result >= 0;
 }
 
-func (r *robot) GenMove(color Color) (vertex Vertex, ok bool) {
-	return Vertex{}, false;
+func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
+	return 0, 0, Passed;
 }
 
 func (r *robot) GetBoardSize() int {

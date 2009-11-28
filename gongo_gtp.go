@@ -26,6 +26,8 @@ import (
 // [1] http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html
 // [2] http://gogui.sourceforge.net/
 
+// === public API ===
+
 // Executes GTP commands using the specified robot.
 // Returns nil after the "quit" command is handled,
 // or non nil for an I/O error. 
@@ -58,19 +60,18 @@ type GoRobot interface {
 	ClearBoard();
 	SetKomi(komi float);
 
-	// Adds a move to the board. Moves can be added in any order, for example
+	// Adds a move to the board. Moves can be added for both players, for example
 	// to set up a position or replay a game. The robot should automatically
-	// handle captures. If a move is illegal, return false.
+	// handle captures.
 	// The x and y coordinates start at 1, where x goes from left to right
-	// and y from bottom to top.
+	// and y from bottom to top. Playing at (0,0) means pass.
+	// The robot returns true if the move was accepted or false for an illegal move.
 	Play(c Color, x, y int) (ok bool);
 
 	// Asks the robot to generate a move at the current position for the given
-	// color. The robot may be asked to play either side, regardless of which
-	// side it was playing before.
-	// The robot should return a vertex (including pass) and handle captures
-	// automatically. Or it can resign by returning ok=false.
-	GenMove(color Color) (vertex Vertex, ok bool);
+	// color. The robot may be asked to play a move for either side.
+	// The robot returns Played, Passed or Resigned.
+	GenMove(color Color) (x, y int, result MoveResult);
 
 	// debug support (for showboard)
 
@@ -78,7 +79,7 @@ type GoRobot interface {
 	GetCell(x, y int) Color;
 }
 
-// Types used by the GoRobot interface
+// === types used by the GoRobot interface ===
 
 type Color int;
 const (
@@ -104,59 +105,16 @@ func (c Color) String() string {
 	panic("not reachable");
 }
 
-// Identifies a place on the board to play a stone. The zero value is "pass".
-// The x index goes from left to right with a range of 1 to the board's size.
-// This is printed as letters starting from 'A', skipping 'I'.
-// The y index goes from bottom to top, from 1.
-type Vertex struct {
-	X int; 
-	Y int; 
-}
+type MoveResult int;
+const (
+	Played MoveResult = 0;
+	Passed MoveResult = 1;
+	Resigned MoveResult = 2;
+)
 
 const MaxBoardSize = 25;
 
-func ParseVertex(input string) (v Vertex, ok bool) {
-	input = strings.ToUpper(input);
-	if len(input) < 2 { return Vertex{}, false; }
-
-	if input == "PASS" { return Vertex{}, true; }
-
-	x := 1 + int(input[0]) - int('A');
-	if (input[0] > 'I') { x--; }
-	if x < 1 || x > MaxBoardSize { return Vertex{}, false; }
-
-	y, err := strconv.Atoi(input[1:len(input)]); 
-	if err != nil || y < 1 || y > MaxBoardSize {
-		return Vertex{}, false;
-	}
-
-	return Vertex{X: x, Y: y}, true;
-}
-
-func (v Vertex) IsPass() bool {
-	return v.X == 0 && v.Y == 0;
-}
-
-func (v Vertex) IsValid(boardSize int) bool {
-	return v.IsPass() || (v.X >= 1 && v.X <= boardSize && v.Y >= 1 && v.Y <= boardSize);
-}
-
-func (this Vertex) Equals(that Vertex) bool {
-	return this.X == that.X && this.Y == that.Y;
-}
-
-func (v Vertex) String() string {
-	if v.IsPass() {
-		return "pass";
-	} else if !v.IsValid(MaxBoardSize) {
-		return fmt.Sprintf("invalid: (%v,%v)", v.X, v.Y);
-	}
-	x_letter := byte(v.X) - 1 + 'A';
-	if x_letter >= 'I' { x_letter--; }
-	return fmt.Sprintf("%c%v", x_letter, v.Y );
-}
-
-// === driver internals ===
+// === driver implementation ===
 
 var word_regexp = regexp.MustCompile("[^  ]+")
 
@@ -271,25 +229,35 @@ func handle_play(req request) response {
 	color, ok := ParseColor(req.args[0]);
 	if !ok { return error("syntax error"); }
 	
-	v, ok := ParseVertex(req.args[1]);
+	x, y, ok := stringToVertex(req.args[1]);
 	if !ok { return error("syntax error"); }
 
-	ok = req.robot.Play(color, v.X, v.Y);
+	ok = req.robot.Play(color, x, y);
 	if !ok { return error("illegal move"); }
 
 	return success("");
 }
 
-func handle_genmove(req request) response {
+func handle_genmove(req request) (response response) {
 	if len(req.args) != 1 { return error("wrong number of arguments"); }
 
 	color, ok := ParseColor(req.args[0]);
 	if !ok { return error("syntax error"); }		
 
-	vertex, ok := req.robot.GenMove(color);
-	if !ok { return success("resign"); }
+	x, y, status := req.robot.GenMove(color);
+	switch status {
+	case Played:
+		message, ok := vertexToString(x, y);
+		if ok {	
+			response = success(message);
+		} else {
+			response = error(message);
+		}
+	case Passed: response = success("pass");
+	case Resigned: response = success("resign");
+	}
 
-	return success(vertex.String());
+	return;
 }
 
 func handle_showboard(req request) response {
@@ -312,4 +280,31 @@ func handle_showboard(req request) response {
 		}
 	}
 	return success(buf.String());
+}
+
+func stringToVertex(input string) (x, y int, ok bool) {
+	input = strings.ToUpper(input);
+	if len(input) < 2 { return 0, 0, false; }
+
+	if input == "PASS" { return 0, 0, true; }
+
+	x = 1 + int(input[0]) - int('A');
+	if (input[0] > 'I') { x--; }
+	if x < 1 || x > MaxBoardSize { return 0, 0, false; }
+
+	y, err := strconv.Atoi(input[1:len(input)]); 
+	if err != nil || y < 1 || y > MaxBoardSize {
+		return 0, 0, false;
+	}
+
+	return x, y, true;
+}
+
+func vertexToString(x, y int) (result string, ok bool) {
+	if x<1 || x>MaxBoardSize || y<1 || y>MaxBoardSize {
+		return fmt.Sprintf("invalid: (%v,%v)", x, y), false;
+	}
+	x_letter := byte(x) - 1 + 'A';
+	if x_letter >= 'I' { x_letter--; }
+	return fmt.Sprintf("%c%v", x_letter, y ), true;
 }
