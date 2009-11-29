@@ -6,11 +6,8 @@ package gongo
 // http://groups.google.com/group/computer-go-archive/browse_thread/thread/bda08b9c37f0803e/8cc424b0fb1b6fe0
 
 import (
-	"log";
 	"rand";
 )
-
-const DEBUG = true;
 
 // === Public API ===
 
@@ -128,6 +125,7 @@ type board struct {
 
 	// Scratch variables, reused to avoid GC:
 	chainPoints []pt; // return value of markSurroundedChain
+	candidates []pt; // moves to choose from; used in playRandomGame.
 }
 
 func (b *board) clearBoard(newSize int) {
@@ -168,6 +166,15 @@ func (b *board) clearBoard(newSize int) {
 	b.commonMoveCount = 0;
 
 	b.chainPoints = make([]pt, len(b.allPoints));
+	b.candidates = make([]pt, len(b.allPoints));
+}
+
+func (b board) GetBoardSize() int {
+	return b.size;
+}
+
+func (b board) GetCell(x, y int) Color {
+	return b.cells[b.makePt(x, y)].toColor();
 }
 
 func (b *board) makePt(x,y int) pt {
@@ -225,6 +232,70 @@ func (b *board) copyFrom(other *board) {
 	b.commonMoveCount = other.moveCount;
 }
 
+// Fill the board with a randomly-generated game
+func (b *board) playRandomGame(rand Randomness) {
+	maxMoves := len(b.allPoints) * 3;
+
+captured: 
+	for {
+		// fill candidates list with unoccupied points
+		candCount := 0;
+		for _, pt := range b.allPoints {
+			if b.cells[pt] == EMPTY {
+				b.candidates[candCount] = pt;
+				candCount++;
+			}
+		}
+
+		// Loop invariants:
+		// candidates between 0 up to playedCount are non-empty
+		// candidates from playedCount to candCount are empty
+
+		// Each time through the played loop:
+		// - One move is made (possibly a pass) 
+		// - moveCount increases by 1
+		// - Either playedCount or passedCount increases by 1.
+
+		playedCount := 0;
+		passedCount := 0;
+	played:
+		for b.moveCount < maxMoves {
+
+			// try to play each candidate, in random order
+			for i := playedCount; i < candCount; i++ {
+
+				// choose random move from remaining candidates
+				randomIndex := i + rand.Intn(candCount - i);
+				randomPt := b.candidates[randomIndex];
+				// swap next candidate with randomly chosen candidate
+				b.candidates[randomIndex], b.candidates[i] = b.candidates[i], randomPt;
+
+				// make the move if we can
+				if !b.wouldFillEye(randomPt) {
+					ok, captures := b.makeMove(randomPt);
+					if ok {
+						if captures > 0 {
+							continue captured;
+						} else {
+							playedCount++;
+							passedCount = 0;
+							continue played;
+						}
+					}
+				}
+			}
+			// pass because none of the candidates are suitable
+			b.makeMove(PASS);
+			passedCount++;
+			if (passedCount == 2) {
+				return; // game over
+			}
+		}
+		// Prevent infinite loop by forcing the game to stop.
+		// (Possible because we're not checking for superko.)
+		return;
+	}
+}
 
 // Given a point that's a legal move for the current player (other than
 // superko), makes the move, handling any captures, and returns the
@@ -242,7 +313,6 @@ func (b *board) makeMove(move pt) (ok bool, captures int) {
 
 	if b.cells[move] != EMPTY {
 		// illegal move: occupied
-		if DEBUG { log.Stderrf("disallow occupied"); }
 		return false, 0;
 	}
 	
@@ -261,7 +331,6 @@ func (b *board) makeMove(move pt) (ok bool, captures int) {
 	if captures == 0 {
 		// check for suicide
 		if !b.hasLiberties(move) {
-			if DEBUG { log.Stderrf("disallow suicide"); }
 			// illegal move; undo and return
 			b.cells[move] = EMPTY;
 			return false, 0;
@@ -272,7 +341,6 @@ func (b *board) makeMove(move pt) (ok bool, captures int) {
 		if (lastMove & ONE_CAPTURE) != 0 && // previous move captured one stone
 			b.cells[lastMove & MOVE_TO_PT_MASK] == EMPTY { // this move captured previous move
 			// found a Ko; revert the capture
-			if DEBUG { log.Stderrf("disallow simple Ko"); }
 			b.cells[lastMove & MOVE_TO_PT_MASK] = enemyStone;
 			b.cells[move] = EMPTY;
 			return false, 0;
@@ -408,7 +476,7 @@ type robot struct {
 	// for determining whether a move would violate positional superko
 	boardHashes []int64;
 
-	// Scratch variables, reused to avoid GC:
+	// Scratch variables, reused to avoid GC
 	scratchBoard *board;
 	candidates []pt; // moves to choose from; used in GenMove.
 }
@@ -417,9 +485,7 @@ func (r *robot) SetBoardSize(newSize int) bool {
 	r.board.clearBoard(newSize);
 	r.scratchBoard.clearBoard(newSize);
 	r.boardHashes = make([]int64, len(r.board.moves));
-
 	r.candidates = make([]pt, len(r.board.allPoints));
-
 	return true;
 }
 
@@ -497,11 +563,11 @@ func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
 }
 
 func (r *robot) GetBoardSize() int {
-	return r.board.size;
+	return r.board.GetBoardSize();
 }
 
 func (r *robot) GetCell(x, y int) Color {
-	return r.board.cells[r.board.makePt(x, y)].toColor();
+	return r.board.GetCell(x, y);
 }
 
 func (r *robot) makeMove(move pt) bool {

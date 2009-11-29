@@ -182,10 +182,57 @@ func TestPassInsteadOfFillingOnePointEyes(t *testing.T) {
 	checkGenPass(t, r, Black, 
 `.@.
  @.@
- .@.`);	
+ .@.`);
 }
 
-// == end of tests ===
+func TestPreferCenter(t *testing.T) {
+	r := NewRobot(3);
+	checkGenMove(t, r, Black, 
+`.,.
+ .@.
+ ...`);
+}
+
+// === test internals ===
+
+func TestGenerateAllSize1Games(t *testing.T) {
+	faker := new(fakeRandomness);
+	var b board;
+
+	b.clearBoard(1);
+	b.playRandomGame(faker);
+	checkBoard(t, b, `.`); 
+	if faker.next() {
+		t.Error("expected only one game");
+	}
+}
+
+func TestGenerateAllSize2Games(t *testing.T) {
+	games, total := generateAllGames(2);
+	checkGameCount(t, games, 144,
+`@.
+ .@`);
+	checkGameCount(t, games, 144,
+`.@
+ @.`);
+	checkGameCount(t, games, 64,
+`OO
+ .O`);
+	checkGameCount(t, games, 64,
+`OO
+ O.`);
+	checkGameCount(t, games, 64,
+`O.
+ OO`);
+	checkGameCount(t, games, 64,
+`.O
+ OO`);
+	if total != 544 {
+		t.Errorf("number of games changed from 544 to %v", total);
+	}
+}
+
+// === end of tests ===
 
 func playLegal(t *testing.T, r GoRobot, c Color, x, y int, expectedBoard string) {
 	ok := r.Play(c,x,y);
@@ -211,6 +258,14 @@ func checkGenPass(t *testing.T, r GoRobot, c Color, expectedBoard string) {
 	checkBoard(t, r, expectedBoard);
 }
 
+func checkGenMove(t *testing.T, r GoRobot, c Color, expectedBoard string) {
+	_, _, result := r.GenMove(c);
+	if result != Played {
+		t.Errorf("didn't generate a move for %v; got %v", c, result);
+	}
+	checkBoard(t, r, expectedBoard);
+}
+
 func checkGenAnyMove(t *testing.T, r GoRobot, colorToPlay Color) {
 	x, y, result := r.GenMove(colorToPlay);
 	if result != Played {
@@ -228,10 +283,9 @@ func checkGenAnyMove(t *testing.T, r GoRobot, colorToPlay Color) {
 	}
 }
 
-
-func checkBoard(t *testing.T, r GoRobot, expectedBoard string) {
+func checkBoard(t *testing.T, b GoBoard, expectedBoard string) {
 	expected := trimBoard(expectedBoard);
-	actual := loadBoard(r);
+	actual := loadBoard(b);
 	if expected != actual {
 		t.Errorf("board is different. Expected:\n%v\nActual:\n%v\n", expected, actual);
 	}
@@ -245,12 +299,12 @@ func trimBoard(s string) string {
 	return strings.Join(lines, "\n");
 }
 
-func loadBoard(r GoRobot) string {
+func loadBoard(b GoBoard) string {
 	var out bytes.Buffer;
-	size := r.GetBoardSize();
+	size := b.GetBoardSize();
 	for y := size; y >= 1; y-- {
 		for x := 1; x <= size; x++ {
-			switch r.GetCell(x,y) {
+			switch b.GetCell(x,y) {
 			case Empty: out.WriteString(".");
 			case White: out.WriteString("O");
 			case Black: out.WriteString("@");
@@ -285,4 +339,96 @@ func setUpBoard(r GoRobot, boardString string) {
 			}
 		}
 	}	
+}
+
+func generateAllGames(size int) (games map[string]int, total int) {
+
+	games = make(map[string]int);
+
+	r := new(fakeRandomness);
+	b := new(board);
+	
+	total = 0;
+	for {
+		b.clearBoard(size);
+		b.playRandomGame(r);
+		boardString := loadBoard(b);
+		if _,ok := games[boardString]; ok {
+			games[boardString]++;
+		} else {
+			games[boardString] = 1;
+		}
+		total++;
+		if !r.next() {
+			break;
+		}
+	}
+	return;
+}
+
+func checkGameCount(t *testing.T, games map[string]int, expectedCount int, board string) {
+	board = trimBoard(board);
+	actual, ok := games[board];
+	if !ok {
+		t.Errorf("no games found for:\n%v\n", board);
+	} else if actual != expectedCount {
+		t.Errorf("expected %v but was %v for:\n%v\n", expectedCount, actual, board);
+	}
+}
+
+// A fake random number generator that can be used to generate all possible
+// choices (a depth-first search, like Prolog). The first time through it
+// will generate all zeros. When restarted, the sequence will be all zeros
+// followed by a 1 at the last output, and so on until all possibilities for
+// the last output are chosen. Then the previous output will be incremented,
+// and so on, something like an odometer except that the last item can be at
+// different depths.
+
+// Invariant: for each index i in outputs, all possible sequences of
+// random numbers have been that begin with the prefixes:
+//   outputs[0], outputs[1], ... outputs[i-1] + any of [0 .. outputs[i] - 1] 
+
+// This allows for at least 2^64 possible values which is far more than reasonable
+const maxOutputs = 64;
+
+type fakeRandomness struct {
+	inputs [maxOutputs]int;
+	outputs [maxOutputs]int;
+	callCount int;
+	allCallsCount int;
+}
+
+func (r *fakeRandomness) Intn(n int) (result int) {
+	if n < 1 {
+		panic("illegal argument to Intn");
+	}
+	if n == 1 {
+		r.allCallsCount++;
+		return 0; // don't count it when there's only one choice
+	}
+	r.inputs[r.callCount] = n;
+	if r.outputs[r.callCount] >= n {
+		panic("can't use fakeRandomness with nondeterministic function")
+	}
+	result = r.outputs[r.callCount];
+	r.callCount++;
+	r.allCallsCount++;
+	return result;
+}
+
+// Resets the fake random number generator in preparation for another
+// run. Returns false if all possibilites have been tried. 
+func (r *fakeRandomness) next() (hasNext bool) {
+	for i := r.callCount - 1; i >= 0; i-- {
+		if r.outputs[i] < r.inputs[i] - 1 {
+			r.outputs[i]++;
+			r.callCount = 0;
+			r.allCallsCount = 0;
+			return true; // have another possibility to try
+		}
+		r.outputs[i] = 0;
+	}
+
+	// we're done; tried all possibilites
+	return false;
 }

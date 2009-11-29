@@ -53,6 +53,12 @@ func Run(robot GoRobot, input io.Reader, out io.Writer) os.Error {
 // GTP protocol doesn't support larger than 25x25
 const MaxBoardSize = 25;
 
+// debug support (for showboard)
+type GoBoard interface {
+	GetBoardSize() int;
+	GetCell(x, y int) Color;
+}
+
 type GoRobot interface {
 	// Attempts to change the board size. If the robot doesn't support the
 	// new size, return false. (In any case, board sizes above 25 aren't
@@ -76,10 +82,7 @@ type GoRobot interface {
 	// The robot returns Played, Passed or Resigned.
 	GenMove(color Color) (x, y int, result MoveResult);
 
-	// debug support (for showboard)
-
-	GetBoardSize() int;
-	GetCell(x, y int) Color;
+	GoBoard;
 }
 
 // === types used by the GoRobot interface ===
