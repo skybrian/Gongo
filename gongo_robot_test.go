@@ -64,22 +64,7 @@ func TestCaptureAndSuicideRules(t *testing.T) {
 
 func TestDisallowSimpleKo(t *testing.T) {
 	r := NewRobot(4);
-	playLegal(t, r, Black, 1, 1,
-`....
- ....
- ....
- @...`);
-	playLegal(t, r, White, 4, 1,
-`....
- ....
- ....
- @..O`);
-	playLegal(t, r, Black, 2, 2,
-`....
- ....
- .@..
- @..O`);
-	playLegal(t, r, White, 3, 2,
+	setUpBoard(r, 
 `....
  ....
  .@O.
@@ -131,6 +116,38 @@ func TestFindMove(t *testing.T) {
 	checkGenAnyMove(t, r, Black);
 }
 
+// example from: http://senseis.xmp.net/?SendingTwoReturningOne
+func TestDisallowPositionalSuperKo(t *testing.T) {
+	r := NewRobot(6);
+	setUpBoard(r,
+`.O.@O.
+ @O@@O.
+ .@@OO.
+ @@O...
+ OOO.O.
+ ......`);
+	playLegal(t, r, Black, 1, 6,
+`@O.@O.
+ @O@@O.
+ .@@OO.
+ @@O...
+ OOO.O.
+ ......`);
+	playLegal(t, r, White, 1, 4,
+`.O.@O.
+ .O@@O.
+ O@@OO.
+ @@O...
+ OOO.O.
+ ......`);
+	playIllegal(t, r, Black, 1, 5,
+`.O.@O.
+ .O@@O.
+ O@@OO.
+ @@O...
+ OOO.O.
+ ......`);
+}
 
 // == end of tests ===
 
@@ -208,4 +225,28 @@ func loadBoard(r GoRobot) string {
 		}
 	}
 	return out.String();
+}
+
+func setUpBoard(r GoRobot, boardString string) {
+	r.ClearBoard();
+	size := r.GetBoardSize();
+	lines := strings.Split(boardString, "\n", 0);
+	if len(lines) != size { panic("wrong number of lines"); }
+	for rowNum := range lines {
+		line := strings.TrimSpace(lines[rowNum]);
+		if len(line) != size { panic("line is wrong length"); }
+		y := size - rowNum;
+		for i,c := range line {
+			var ok bool;
+			switch c {
+			case '@': ok = r.Play(Black, i+1, y);
+			case 'O': ok = r.Play(White, i+1, y);
+			case '.': ok = true;
+			default: panic("invalid character in board");
+			}
+			if !ok {
+				panic("couldn't place stone");
+			}
+		}
+	}	
 }
