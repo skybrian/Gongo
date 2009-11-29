@@ -182,7 +182,7 @@ func (b *board) getFriendlyStone() cell {
 
 // Returns a hash of the current board position, useful for determining whether
 // we repeated a board position.
-// Based on hash() function from Java ref bot:
+// Based on the hash() function from the Java reference bot:
     /* ------------------------------------------------------------
        get a hash of current position - calculating from scratch
 
@@ -220,44 +220,32 @@ func (b *board) copyFrom(other *board) {
 	b.commonMoveCount = other.moveCount;
 }
 
-// Direct translation of make() method from Java ref bot:
-    /* --------------------------------------------------------
-       make() - tries to make a move and returns a status code.  
 
-       Does not check for positional superko.
-       Does not destroy the position if the move is not legal.
-
-       returns:
-         negative value if move is illegal:
-           -1 if move is suicide
-           -2 if move is simple ko violation
-	   -3 if point is occupied
-
-        if legal returns:
-            0 - non-capture move
-	    n > 0  - number of stones captured
-       -------------------------------------------------------- */
-func (b *board) makeMove(move pt) int {
+// Given a point that's a legal move for the current player (other than
+// superko), makes the move, handling any captures, and returns the
+// number of stones captured. Otherwise does nothing and returns false.
+// (Based on the make() method from the Java reference bot.)
+func (b *board) makeMove(move pt) (ok bool, captures int) {
 	friendlyStone  := cell(2 - (b.moveCount & 1));
 	enemyStone := friendlyStone ^ 3;
 	
 	if move == PASS {
 		b.moves[b.moveCount] = PASS;
 		b.moveCount++;
-		return 0;
+		return true, 0;
 	}
 
 	if b.cells[move] != EMPTY {
 		// illegal move: occupied
 		if DEBUG { log.Stderrf("disallow occupied"); }
-		return -3;
+		return false, 0;
 	}
 	
 	// place stone
 	b.cells[move] = friendlyStone;
 	
 	// find any captures and remove them from the board
-	captures := 0;
+	captures = 0;
 	for direction := 0; direction < 4; direction++ {
 	    neighborPt := move + b.dirOffset[direction];
 	    if (b.cells[neighborPt] == enemyStone) {
@@ -271,7 +259,7 @@ func (b *board) makeMove(move pt) int {
 			if DEBUG { log.Stderrf("disallow suicide"); }
 			// illegal move; undo and return
 			b.cells[move] = EMPTY;
-			return -1;
+			return false, 0;
 		}
 	} else if captures == 1 {
 		// check for simple Ko.
@@ -279,16 +267,17 @@ func (b *board) makeMove(move pt) int {
 		if (lastMove & ONE_CAPTURE) != 0 && // previous move captured one stone
 			b.cells[lastMove & MOVE_TO_PT_MASK] == EMPTY { // this move captured previous move
 			// found a Ko; revert the capture
+			if DEBUG { log.Stderrf("disallow simple Ko"); }
 			b.cells[lastMove & MOVE_TO_PT_MASK] = enemyStone;
 			b.cells[move] = EMPTY;
-			return -2;
+			return false, 0;
 		}
 		move = ONE_CAPTURE | move;
 	}
 
 	b.moves[b.moveCount] = move;
 	b.moveCount++;
-	return captures;
+	return true, captures;
 }
 
 // Given any point in a chain with no liberties, removes all stones in the
@@ -468,8 +457,8 @@ func (r *robot) makeMove(move pt) bool {
 	if !r.isLegalMove(move) {
 		return false;
 	}
-	result := r.board.makeMove(move);
-	if result < 0 {
+	ok, _ := r.board.makeMove(move);
+	if !ok {
 		panic("isLegalMove should have returned false");
 	}
 	r.boardHashes[r.board.moveCount - 1] = r.board.getHash();
@@ -487,7 +476,8 @@ func (r *robot) isLegalMove(move pt) (result bool) {
 	// try this move on the scratch board
 	sb := r.scratchBoard;
 	sb.copyFrom(r.board);
-	if sb.makeMove(move) < 0 {
+	ok, _ := sb.makeMove(move);
+	if !ok {
 		return false;
 	}
 
