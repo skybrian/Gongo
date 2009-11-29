@@ -38,7 +38,6 @@ func TestCaptureAndSuicideRules(t *testing.T) {
 `.O.
  ..O
  @..`);
-
 	playLegal(t, r, Black, 2, 2,
 `.O.
  .@O
@@ -60,6 +59,21 @@ func TestCaptureAndSuicideRules(t *testing.T) {
 `@..
  .@.
  @@.`);
+}
+
+func TestAllowFillInKo(t *testing.T) {
+	r := NewRobot(4);
+	setUpBoard(r,
+`.@OO
+ @.@O
+ .@OO
+ ....`);
+	playLegal(t, r, Black, 2, 3, 
+`.@OO
+ @@@O
+ .@OO
+ ....`
+	);
 }
 
 func TestDisallowSimpleKo(t *testing.T) {
@@ -106,16 +120,6 @@ func TestPlayByPassing(t *testing.T) {
  ...`);	
 }
 
-func TestFindPass(t *testing.T) {
-	r := NewRobot(1);
-	checkGenPass(t, r, Black, `.`);
-}
-
-func TestFindMove(t *testing.T) {
-	r := NewRobot(2);
-	checkGenAnyMove(t, r, Black);
-}
-
 // example from: http://senseis.xmp.net/?SendingTwoReturningOne
 func TestDisallowPositionalSuperKo(t *testing.T) {
 	r := NewRobot(6);
@@ -147,6 +151,38 @@ func TestDisallowPositionalSuperKo(t *testing.T) {
  @@O...
  OOO.O.
  ......`);
+}
+
+// === move generation tests ===
+
+func TestPassWhenNoMovesLeft(t *testing.T) {
+	r := NewRobot(1);
+	checkGenPass(t, r, Black, `.`);
+}
+
+func TestMakeMoveWhenBoardIsEmpty(t *testing.T) {
+	r := NewRobot(2);
+	checkGenAnyMove(t, r, Black);
+}
+
+func TestMakeMoveWhenSameSidePlayedLast(t *testing.T) {
+	r := NewRobot(2);
+	playLegal(t, r, Black, 1, 1,
+`..
+ @.`);
+	checkGenAnyMove(t, r, Black);	
+}
+
+func TestPassInsteadOfFillingOnePointEyes(t *testing.T) {
+	r := NewRobot(3);
+	setUpBoard(r,
+`.@.
+ @.@
+ .@.`);
+	checkGenPass(t, r, Black, 
+`.@.
+ @.@
+ .@.`);	
 }
 
 // == end of tests ===

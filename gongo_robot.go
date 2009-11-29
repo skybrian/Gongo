@@ -116,6 +116,7 @@ type board struct {
 	size int;
 	stride int; // boardSize + 1 to account for barrier column
 	dirOffset [4]pt; // amount to add to a pt to move in each cardinal direction
+	diagOffset [4]pt; // amount to add to a pt to move in each diagonal direction
 
 	cells []cell;
 	allPoints []pt; // List of all points on the board. (Skips barrier cells.)
@@ -136,6 +137,10 @@ func (b *board) clearBoard(newSize int) {
 	b.dirOffset[1] = pt(-1); // left
 	b.dirOffset[2] = pt(b.stride); // up
 	b.dirOffset[3] = pt(-b.stride); // down
+	b.diagOffset[0] = pt(b.stride - 1); // nw
+	b.diagOffset[1] = pt(b.stride + 1); // ne
+	b.diagOffset[2] = pt(-b.stride - 1); // sw
+	b.diagOffset[3] = pt(-b.stride + 1); // se
 	
 	rowCount := newSize + 2;
 	b.cells = make([]cell, rowCount * b.stride + 1); // 1 extra for diagonal move to edge
@@ -226,7 +231,7 @@ func (b *board) copyFrom(other *board) {
 // number of stones captured. Otherwise does nothing and returns false.
 // (Based on the make() method from the Java reference bot.)
 func (b *board) makeMove(move pt) (ok bool, captures int) {
-	friendlyStone  := cell(2 - (b.moveCount & 1));
+	friendlyStone := cell(2 - (b.moveCount & 1));
 	enemyStone := friendlyStone ^ 3;
 	
 	if move == PASS {
@@ -356,6 +361,43 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	return chainCount;
 }
 
+// Returns true if this move would fill in an eye.
+// Based on eyeMove() in Java ref bot:
+/*     definition of eye:
+
+       an empty point whose orthogonal neighbors are all of the
+       same color AND whose diagonal neighbors contain no more
+       than 1 stone of the opposite color unless it's a border
+       in which case no diagonal enemies are allowed. */
+func (b *board) wouldFillEye(move pt) bool {
+	if move == PASS {
+		return false;
+	}
+	friendlyStone := cell(2 - (b.moveCount & 1));
+	enemyStone := friendlyStone ^ 3;
+	
+	// not an eye unless cardinal directions have friendly stones or edge.
+	for direction := 0; direction < 4; direction++ {
+		neighborPt := move + b.dirOffset[direction];
+		neighborCell := b.cells[neighborPt];
+		if neighborCell != EDGE && neighborCell != friendlyStone {
+			return false;
+		}
+	}
+
+	// count diagonal enemies and edges
+	haveEdge := 0;
+	enemies := 0;
+	for direction := 0; direction < 4; direction++ {
+		neighborPt := move + b.diagOffset[direction];
+		switch b.cells[neighborPt] {
+		case enemyStone: enemies++;
+		case EDGE: haveEdge = 1;
+		}
+	}
+	return enemies + haveEdge < 2;
+}
+
 // === Implementation of GoRobot interface ===
 
 type robot struct {
@@ -404,7 +446,7 @@ func (r *robot) Play(color Color, x, y int) bool {
 		// GTP protocol allows two moves by the same color, to allow a game
 		// to be set up more easily; treat as if the other player passed.
 		if ok := r.Play(color.GetOpponent(), 0, 0); !ok {
-			return false;
+			panic("other side cannot pass?");
 		}
 	}
 
@@ -412,6 +454,15 @@ func (r *robot) Play(color Color, x, y int) bool {
 }
 
 func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
+	friendlyStone := r.board.getFriendlyStone();
+	if (friendlyStone != colorToCell(color)) {
+		// GTP protocol allows generating a move by either side;
+		// treat as if the other player passed.
+		if ok := r.Play(color.GetOpponent(), 0, 0); !ok {
+			panic("other side cannot pass?");
+		}
+	}
+	
 	// find unoccupied points
 	candidateCount := 0;
 	for _, thisPt := range r.board.allPoints {
@@ -433,8 +484,8 @@ func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
 			r.candidates[swapIndex] = thisPt;
 			thisPt = r.candidates[triedCount];
 		}
-		// make the move if it's legal
-		if r.makeMove(thisPt) {
+		// make the move if we can
+		if !r.board.wouldFillEye(thisPt) && r.makeMove(thisPt) {
 			x, y = r.board.getCoords(thisPt);
 			result = Played;
 			return;
