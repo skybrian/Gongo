@@ -2,6 +2,7 @@ package gongo
 
 import (
 	"bytes";
+	"fmt";
 	"strings";
 	"testing";
 )
@@ -201,7 +202,7 @@ func TestGenerateAllSize1Games(t *testing.T) {
 
 	b.clearBoard(1);
 	b.playRandomGame(faker);
-	checkBoard(t, b, `.`); 
+	checkBoard(t, &b, `.`); 
 	if faker.next() {
 		t.Error("expected only one game");
 	}
@@ -227,25 +228,56 @@ func TestGenerateAllSize2Games(t *testing.T) {
 	checkGameCount(t, games, 64,
 `.O
  OO`);
-	if total != 544 {
-		t.Errorf("number of games changed from 544 to %v", total);
-	}
+	assertEqualsInt(t, 544, total, "number of games changed");
+}
+
+func TestEasyScore(t *testing.T) {
+	checkEasyScore(t, 0, `.`);
+	checkEasyScore(t, 0, 
+`..
+ ..`);
+	checkEasyScore(t, 1, 
+`@.
+ @O`);
+	checkEasyScore(t, 9, 
+`.@.
+ @.@
+ .@.`);
+	checkEasyScore(t, 1, 
+`.O.
+ @@O
+ .@.`);
+	checkEasyScore(t, -1, 
+`.O.
+ @OO
+ .@.`);
 }
 
 // === end of tests ===
 
+func assertEqualsInt(t *testing.T, expected, actual int, message string) {
+	if expected != actual {
+		t.Errorf("%v: expected %v but got %v", message, expected, actual);
+	}
+}
+
+func checkEasyScore(t *testing.T, expected int, boardString string) {
+	b := makeBoard(boardString);
+	assertEqualsInt(t, expected, b.getEasyScore(), fmt.Sprintf("score is different:\n%v ", boardString));
+}
+
 func playLegal(t *testing.T, r GoRobot, c Color, x, y int, expectedBoard string) {
-	ok := r.Play(c,x,y);
+	ok, message := r.Play(c,x,y);
 	if !ok {
-		t.Errorf("legal move rejected: %v (%v,%v)", c, x, y);
+		t.Errorf("legal move rejected: %v (%v,%v): %v", c, x, y, message);
 	}
 	checkBoard(t, r, expectedBoard);
 }
 
 func playIllegal(t *testing.T, r GoRobot, c Color, x, y int, expectedBoard string) {
-	ok := r.Play(c,x,y);
+	ok, message := r.Play(c,x,y);
 	if ok {
-		t.Errorf("illegal move not rejected: %v (%v,%v)", c, x, y);
+		t.Errorf("illegal move not rejected: %v (%v,%v): %v", c, x, y, message);
 	}
 	checkBoard(t, r, expectedBoard);
 }
@@ -281,6 +313,31 @@ func checkGenAnyMove(t *testing.T, r GoRobot, colorToPlay Color) {
 			t.Errorf("played cell doesn't contain stone; got: %v", cellColor);
 		} 
 	}
+}
+
+func makeBoard(boardString string) board {
+	lines := strings.Split(boardString, "\n", 0);
+	var b board;
+	b.clearBoard(len(lines));
+	for rowNum := range lines {
+		line := strings.TrimSpace(lines[rowNum]);
+		if len(line) != b.GetBoardSize() { panic("line is wrong length"); }
+		y := b.GetBoardSize() - rowNum;
+		for i,c := range line {
+			var ok bool;
+			var message string;
+			switch c {
+			case '@': ok, message = b.Play(Black, i+1, y);
+			case 'O': ok, message = b.Play(White, i+1, y);
+			case '.': ok = true;
+			default: panic("invalid character in board");
+			}
+			if !ok {
+				panic("couldn't place stone: ", (i+1), ",", y, ": ", message);
+			}
+		}
+	}
+	return b;
 }
 
 func checkBoard(t *testing.T, b GoBoard, expectedBoard string) {
@@ -328,19 +385,21 @@ func setUpBoard(r GoRobot, boardString string) {
 		y := size - rowNum;
 		for i,c := range line {
 			var ok bool;
+			var message string;
 			switch c {
-			case '@': ok = r.Play(Black, i+1, y);
-			case 'O': ok = r.Play(White, i+1, y);
+			case '@': ok, message = r.Play(Black, i+1, y);
+			case 'O': ok, message = r.Play(White, i+1, y);
 			case '.': ok = true;
 			default: panic("invalid character in board");
 			}
 			if !ok {
-				panic("couldn't place stone");
+				panic("couldn't place stone: ", message);
 			}
 		}
 	}	
 }
 
+// This is only reasonable for size 1 or 2
 func generateAllGames(size int) (games map[string]int, total int) {
 
 	games = make(map[string]int);
@@ -385,7 +444,7 @@ func checkGameCount(t *testing.T, games map[string]int, expectedCount int, board
 // different depths.
 
 // Invariant: for each index i in outputs, all possible sequences of
-// random numbers have been that begin with the prefixes:
+// random numbers have been tried that begin with the prefixes:
 //   outputs[0], outputs[1], ... outputs[i-1] + any of [0 .. outputs[i] - 1] 
 
 // This allows for at least 2^64 possible values which is far more than reasonable

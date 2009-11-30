@@ -6,6 +6,7 @@ package gongo
 // http://groups.google.com/group/computer-go-archive/browse_thread/thread/bda08b9c37f0803e/8cc424b0fb1b6fe0
 
 import (
+	"fmt";
 	"rand";
 )
 
@@ -109,6 +110,40 @@ const (
 	MOVE_TO_PT_MASK = 1023;
 )
 
+type moveResult int;
+
+const (
+	played moveResult = iota;
+	passed;
+	occupied;
+	suicide;
+	ko;
+	superko;
+)
+
+func (m moveResult) ok() bool {
+	return m==played || m==passed;
+}
+
+func (m moveResult) String() string {
+	switch m {
+	case played: return "played";
+	case passed: return "passed";
+	case occupied: return "occupied";
+	case suicide: return "suicide";
+	case ko: return "ko";
+	case superko: return "superko";
+	}
+	panic("invalid moveResult");
+}
+
+func (m moveResult) toPlayResult(captures int) (bool, string) {
+	if m == played {
+		return true, fmt.Sprintf("captures: %v", captures);
+	}
+	return m.ok(), m.String();	
+}
+
 type board struct {
 	size int;
 	stride int; // boardSize + 1 to account for barrier column
@@ -175,6 +210,38 @@ func (b board) GetBoardSize() int {
 
 func (b board) GetCell(x, y int) Color {
 	return b.cells[b.makePt(x, y)].toColor();
+}
+
+// Simple version of Play() for working with a board directly in tests.
+// Doesn't check superko or update r.boardHashes
+func (b *board) Play(color Color, x, y int) (ok bool, message string) {
+	if !b.checkPlayArgs(color, x, y) {
+		return false, "invalid args";
+	}
+	
+	if (!b.isMyTurn(color)) {
+		// assume the other player passed
+		if ok, message := b.Play(color.GetOpponent(), 0, 0); !ok {
+			return false, "other side cannot pass? (" + message + ")";
+		}
+	}
+
+	result, captures :=  b.makeMove(b.makePt(x, y));
+	return result.toPlayResult(captures);
+}
+
+func (b *board) checkPlayArgs(color Color, x,y int) bool {
+	if color != White && color != Black {
+		return false;
+	}
+	if x == 0 && y == 0 {
+		return true;
+	}
+	return x > 0 && y > 0 && x <= b.size && y <= b.size;
+}
+
+func (b *board) isMyTurn(c Color) bool {
+	return b.getFriendlyStone() == colorToCell(c);
 }
 
 func (b *board) makePt(x,y int) pt {
@@ -272,9 +339,10 @@ captured:
 
 				// make the move if we can
 				if !b.wouldFillEye(randomPt) {
-					ok, captures := b.makeMove(randomPt);
-					if ok {
+					result, captures := b.makeMove(randomPt);
+					if result==played {
 						if captures > 0 {
+							// capturing invalidates the candidate list, so restart
 							continue captured;
 						} else {
 							playedCount++;
@@ -297,23 +365,49 @@ captured:
 	}
 }
 
-// Given a point that's a legal move for the current player (other than
-// superko), makes the move, handling any captures, and returns the
-// number of stones captured. Otherwise does nothing and returns false.
-// (Based on the make() method from the Java reference bot.)
-func (b *board) makeMove(move pt) (ok bool, captures int) {
+// Returns the number of black points minus the number of white points,
+// assuming the game has been played to the end where all empty points
+// are surrounded. (Doesn't include komi.)
+func (b *board) getEasyScore() int {
+	// 0=unused, 1=white, 2=black
+	// 3=surrounded by both (no score; missed point under area scoring)
+	var cellCounts [4]int;
+	
+	for _, pt := range b.allPoints {
+		switch cell := b.cells[pt]; cell {
+		case BLACK, WHITE:
+			cellCounts[cell]++;
+		case EMPTY:
+			// Find which neighbors are present by OR-ing the cells together.
+			// (This works because WHITE and BLACK are single bits and 3 is
+			// not used on the board.)
+			neighborBits := 0;
+			for direction := 0; direction < 4; direction++ {
+				neighborCell := b.cells[pt + b.dirOffset[direction]];
+				neighborBits = neighborBits | int(neighborCell);
+			}
+			cellCounts[neighborBits & 3]++;
+		}
+	}
+	return cellCounts[BLACK] - cellCounts[WHITE];
+}
+
+// A fast version of makeMove() that's good enough for playouts.
+// If the given move is legal, update the board, and return true along
+// with the number of captures. Otherwise, do nothing and return false.
+// Doesn't check superko or update boardHashes.
+func (b *board) makeMove(move pt) (result moveResult, captures int) {
 	friendlyStone := cell(2 - (b.moveCount & 1));
 	enemyStone := friendlyStone ^ 3;
 	
 	if move == PASS {
 		b.moves[b.moveCount] = PASS;
 		b.moveCount++;
-		return true, 0;
+		return passed, 0;
 	}
 
 	if b.cells[move] != EMPTY {
-		// illegal move: occupied
-		return false, 0;
+		return occupied, 0;
 	}
 	
 	// place stone
@@ -333,7 +427,7 @@ func (b *board) makeMove(move pt) (ok bool, captures int) {
 		if !b.hasLiberties(move) {
 			// illegal move; undo and return
 			b.cells[move] = EMPTY;
-			return false, 0;
+			return suicide, 0;
 		}
 	} else if captures == 1 {
 		// check for simple Ko.
@@ -343,14 +437,14 @@ func (b *board) makeMove(move pt) (ok bool, captures int) {
 			// found a Ko; revert the capture
 			b.cells[lastMove & MOVE_TO_PT_MASK] = enemyStone;
 			b.cells[move] = EMPTY;
-			return false, 0;
+			return ko, 0;
 		}
 		move = ONE_CAPTURE | move;
 	}
 
 	b.moves[b.moveCount] = move;
 	b.moveCount++;
-	return true, captures;
+	return played, captures;
 }
 
 // Given any point in a chain with no liberties, removes all stones in the
@@ -496,26 +590,20 @@ func (r *robot) ClearBoard() {
 func (r *robot) SetKomi(value float) {
 }
 
-func (r *robot) Play(color Color, x, y int) bool {
-	if (x<1 || y <1) && !(x==0 && y==0) {
-		return false;
-	}
-	if x>r.board.size || y>r.board.size {
-		return false;
-	}
-	if color != White && color != Black {
-		return false;
+func (r *robot) Play(color Color, x, y int) (ok bool, message string) {
+	if !r.board.checkPlayArgs(color, x, y) {
+		return false, "invalid args";
 	}
 	
-	friendlyStone := r.board.getFriendlyStone();
-	if (friendlyStone != colorToCell(color)) {
+	if (!r.board.isMyTurn(color)) {
 		// GTP protocol allows two moves by the same color, to allow a game
 		// to be set up more easily; treat as if the other player passed.
-		if ok := r.Play(color.GetOpponent(), 0, 0); !ok {
-			panic("other side cannot pass?");
+		if ok, message := r.Play(color.GetOpponent(), 0, 0); !ok {
+			return false, fmt.Sprintf("other side cannot pass? (%v)", message);
 		}
 	}
 
+	// use full version of makeMove so we update r.boardHashes
 	return r.makeMove(r.board.makePt(x, y));
 }
 
@@ -524,8 +612,8 @@ func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
 	if (friendlyStone != colorToCell(color)) {
 		// GTP protocol allows generating a move by either side;
 		// treat as if the other player passed.
-		if ok := r.Play(color.GetOpponent(), 0, 0); !ok {
-			panic("other side cannot pass?");
+		if ok, message := r.Play(color.GetOpponent(), 0, 0); !ok {
+			panic("other side cannot pass? ", message);
 		}
 	}
 	
@@ -551,10 +639,13 @@ func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
 			thisPt = r.candidates[triedCount];
 		}
 		// make the move if we can
-		if !r.board.wouldFillEye(thisPt) && r.makeMove(thisPt) {
-			x, y = r.board.getCoords(thisPt);
-			result = Played;
-			return;
+		if !r.board.wouldFillEye(thisPt) {
+			ok, _ := r.makeMove(thisPt);
+			if ok {
+				x, y = r.board.getCoords(thisPt);
+				result = Played;
+				return;
+			}
 		}
 	}
 
@@ -570,42 +661,37 @@ func (r *robot) GetCell(x, y int) Color {
 	return r.board.GetCell(x, y);
 }
 
-func (r *robot) makeMove(move pt) bool {
-	if !r.isLegalMove(move) {
-		return false;
+// The strict version of makeMove for actually making a move.
+// (Checks for superko and updates boardHashes.)
+func (r *robot) makeMove(move pt) (ok bool, message string) {
+	result := r.checkLegalMove(move);
+	if !result.ok() {
+		return false, result.String();
 	}
-	ok, _ := r.board.makeMove(move);
-	if !ok {
-		panic("isLegalMove should have returned false");
+	result, captures := r.board.makeMove(move);
+	if !result.ok() {
+		return false, "isLegalMove ok but makeMove returned: " + result.String();
 	}
 	r.boardHashes[r.board.moveCount - 1] = r.board.getHash();
-	return true;
+	return result.toPlayResult(captures);
 }
 
-func (r *robot) isLegalMove(move pt) (result bool) {
-	if move == PASS {
-		return true;
-	}
-	if r.board.cells[move] != EMPTY {
-		return false;
-	}
-
+func (r *robot) checkLegalMove(move pt) (result moveResult) {
 	// try this move on the scratch board
 	sb := r.scratchBoard;
 	sb.copyFrom(r.board);
-	ok, _ := sb.makeMove(move);
-	if !ok {
-		return false;
-	}
-
-	// check for superko
-	newHash := sb.getHash();
-	for i := 0; i < r.board.moveCount; i++ {
-		if newHash == r.boardHashes[i] {
-			// found superko
-			return false;
+	result, _ = sb.makeMove(move);
+	
+	if result == played {
+		// check for superko
+		newHash := sb.getHash();
+		for i := 0; i < r.board.moveCount; i++ {
+			if newHash == r.boardHashes[i] {
+				// found superko
+				return superko;
+			}
 		}
 	}
 
-	return true;
+	return result;
 }

@@ -53,10 +53,22 @@ func Run(robot GoRobot, input io.Reader, out io.Writer) os.Error {
 // GTP protocol doesn't support larger than 25x25
 const MaxBoardSize = 25;
 
-// debug support (for showboard)
+
 type GoBoard interface {
+	// debug support (for showboard)
 	GetBoardSize() int;
 	GetCell(x, y int) Color;
+	
+	// Adds a move to the board. Moves can be added for either side in any
+	// order, for example to set up a position. If the same player plays twice,
+	// it's assumed that the other player passed. The board automatically
+	// handle captures.
+	// The x and y coordinates start at 1, where x goes from left to right
+	// and y from bottom to top. Playing at (0,0) means pass.
+	// Returns:
+	//   ok - true if the move was accepted or false for an illegal move
+	//   message - status or error message, for debugging. May be empty.
+	Play(c Color, x, y int) (ok bool, message string);
 }
 
 type GoRobot interface {
@@ -69,17 +81,9 @@ type GoRobot interface {
 	ClearBoard();
 	SetKomi(komi float);
 
-	// Adds a move to the board. Moves can be added for both players, for example
-	// to set up a position or replay a game. The robot should automatically
-	// handle captures.
-	// The x and y coordinates start at 1, where x goes from left to right
-	// and y from bottom to top. Playing at (0,0) means pass.
-	// The robot returns true if the move was accepted or false for an illegal move.
-	Play(c Color, x, y int) (ok bool);
-
 	// Asks the robot to generate a move at the current position for the given
 	// color. The robot may be asked to play a move for either side.
-	// The robot returns Played, Passed or Resigned.
+	// The result is one of Played, Passed, or Resigned.
 	GenMove(color Color) (x, y int, result MoveResult);
 
 	GoBoard;
@@ -253,7 +257,7 @@ func handle_play(req request) response {
 	x, y, ok := stringToVertex(req.args[1]);
 	if !ok { return error("syntax error"); }
 
-	ok = req.robot.Play(color, x, y);
+	ok, _ = req.robot.Play(color, x, y);
 	if !ok { return error("illegal move"); }
 
 	return success("");

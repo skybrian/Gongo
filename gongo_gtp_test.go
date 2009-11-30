@@ -175,11 +175,11 @@ func (r *fake_robot) SetKomi(value float) {
 	r.komi = value;
 }
 
-func (r *fake_robot) Play(color Color, x, y int) bool {
+func (r *fake_robot) Play(color Color, x, y int) (ok bool, message string) {
 	r.color = color;
 	r.x = x;
 	r.y = y;
-	return r.send_ok;
+	return r.send_ok, "";
 }
 
 func (r *fake_robot) GenMove(color Color) (x, y int, result MoveResult) {
