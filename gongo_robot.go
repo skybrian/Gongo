@@ -565,6 +565,7 @@ func (b *board) wouldFillEye(move pt) bool {
 type robot struct {
 	board *board;
 	randomness Randomness;
+	komi float;
 	
 	// Contains a hash of each previous board in the current game,
 	// for determining whether a move would violate positional superko
@@ -573,6 +574,7 @@ type robot struct {
 	// Scratch variables, reused to avoid GC
 	scratchBoard *board;
 	candidates []pt; // moves to choose from; used in GenMove.
+	wins, hits []int; // results of findWins()
 }
 
 func (r *robot) SetBoardSize(newSize int) bool {
@@ -580,6 +582,8 @@ func (r *robot) SetBoardSize(newSize int) bool {
 	r.scratchBoard.clearBoard(newSize);
 	r.boardHashes = make([]int64, len(r.board.moves));
 	r.candidates = make([]pt, len(r.board.allPoints));
+	r.wins = make([]int, len(r.board.cells));
+	r.hits = make([]int, len(r.board.cells));
 	return true;
 }
 
@@ -588,6 +592,7 @@ func (r *robot) ClearBoard() {
 }
 
 func (r *robot) SetKomi(value float) {
+	r.komi = value;
 }
 
 func (r *robot) Play(color Color, x, y int) (ok bool, message string) {
@@ -604,12 +609,12 @@ func (r *robot) Play(color Color, x, y int) (ok bool, message string) {
 	}
 
 	// use full version of makeMove so we update r.boardHashes
-	return r.makeMove(r.board.makePt(x, y));
+	result, captures := r.makeMove(r.board.makePt(x, y));
+	return result.toPlayResult(captures);
 }
 
-func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
-	friendlyStone := r.board.getFriendlyStone();
-	if (friendlyStone != colorToCell(color)) {
+func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
+	if (!r.board.isMyTurn(color)) {
 		// GTP protocol allows generating a move by either side;
 		// treat as if the other player passed.
 		if ok, message := r.Play(color.GetOpponent(), 0, 0); !ok {
@@ -617,40 +622,45 @@ func (r *robot) GenMove(color Color) (x, y int, result MoveResult) {
 		}
 	}
 	
-	// find unoccupied points
+	r.findWins(1000);
+	
+	// create a list of possible moves
+	candidates := r.candidates; // reuse array to avoid allocation
 	candidateCount := 0;
-	for _, thisPt := range r.board.allPoints {
-		if r.board.cells[thisPt] == EMPTY {
-			r.candidates[candidateCount] = thisPt;
+	for _, pt := range r.board.allPoints {
+		if r.hits[pt] > 0 && !r.board.wouldFillEye(pt) && r.checkLegalMove(pt) == played {
+			candidates[candidateCount] = pt;
 			candidateCount++;
 		}
 	}
 	
-	// find any legal move
-	for triedCount := 0; triedCount < candidateCount; triedCount++ {
-
-		// choose move at random from remaining candidates
-		swapIndex := triedCount + r.randomness.Intn(candidateCount - triedCount);
-		thisPt := r.candidates[triedCount];
-		// swap with next candidate
-		if swapIndex > triedCount {
-			r.candidates[triedCount] = r.candidates[swapIndex];
-			r.candidates[swapIndex] = thisPt;
-			thisPt = r.candidates[triedCount];
-		}
-		// make the move if we can
-		if !r.board.wouldFillEye(thisPt) {
-			ok, _ := r.makeMove(thisPt);
-			if ok {
-				x, y = r.board.getCoords(thisPt);
-				result = Played;
-				return;
-			}
+	// choose best move by iterating through candidates
+	// (randomly permuted to break ties randomly)
+	bestMove := PASS;
+	bestScore := float(-99.0);
+	for i := 0; i < candidateCount; i++ {
+		
+		// permute
+		randomIndex := i + rand.Intn(candidateCount - i);
+		pt := r.candidates[randomIndex];
+		r.candidates[randomIndex], r.candidates[i] = r.candidates[i], pt;
+		
+		score := float(r.wins[pt]) / float(r.hits[pt]);
+		if score > bestScore {
+			bestMove = pt;
+			bestScore = score;
 		}
 	}
 
-	// no legal move found
-	return 0, 0, Passed;
+	result, _ := r.makeMove(bestMove);
+
+	if result == played {
+		x, y := r.board.getCoords(bestMove);
+		return x, y, Played;
+	} else if result == passed {
+		return 0, 0, Passed;
+	}
+	panic("can't make generated move? ", result);
 }
 
 func (r *robot) GetBoardSize() int {
@@ -663,17 +673,16 @@ func (r *robot) GetCell(x, y int) Color {
 
 // The strict version of makeMove for actually making a move.
 // (Checks for superko and updates boardHashes.)
-func (r *robot) makeMove(move pt) (ok bool, message string) {
-	result := r.checkLegalMove(move);
-	if !result.ok() {
-		return false, result.String();
+func (r *robot) makeMove(move pt) (result moveResult, captures int) {
+	if result := r.checkLegalMove(move); !result.ok() {
+		return result, 0;
 	}
-	result, captures := r.board.makeMove(move);
+	result, captures = r.board.makeMove(move);
 	if !result.ok() {
-		return false, "isLegalMove ok but makeMove returned: " + result.String();
+		panic("isLegalMove ok but makeMove returned: ", result);
 	}
 	r.boardHashes[r.board.moveCount - 1] = r.board.getHash();
-	return result.toPlayResult(captures);
+	return result, captures;
 }
 
 func (r *robot) checkLegalMove(move pt) (result moveResult) {
@@ -694,4 +703,51 @@ func (r *robot) checkLegalMove(move pt) (result moveResult) {
 	}
 
 	return result;
+}
+
+// Use Monte-Carlo simulation to find a win rate for each point on the board.
+// On return, r.wins[pt] will have the number of wins minus losses associated
+// with a point and r.hits[pt] will have the number of samples for that point.
+func (r *robot) findWins(numSamples int) {
+	// clear statistics
+	for _, pt := range r.wins {
+		r.wins[pt] = 0;
+		r.hits[pt] = 0;
+	}
+
+	sb := r.scratchBoard;
+	for i := 0; i<numSamples; i++ {
+		sb.copyFrom(r.board);
+		sb.playRandomGame(r.randomness);
+		score := sb.getEasyScore();
+
+		// choose amount to add to points used in this game
+		var winAmount int;
+		if float(score) > r.komi {
+			winAmount = 1;
+		} else if float(score) < r.komi {
+			winAmount = -1;
+		} else {
+			winAmount = 0; // a draw
+		}
+		if r.board.getFriendlyStone() == WHITE {
+			winAmount = -winAmount;
+		}
+		
+		// For each point where the first player to play was the current
+		// player, add winAmount. (All Moves As First heuristic)
+	scoring:
+		for i := r.board.moveCount; i < sb.moveCount; i += 2 {
+			pt  := sb.moves[i] & MOVE_TO_PT_MASK;
+			// check that it hasn't been played yet
+			for j := r.board.moveCount; j < i; j++ {
+				if sb.moves[j] == pt {
+					continue scoring;
+				}
+			}
+			
+			r.wins[pt] += winAmount;
+			r.hits[pt]++;
+		}
+	}
 }

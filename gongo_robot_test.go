@@ -189,7 +189,7 @@ func TestPassInsteadOfFillingOnePointEyes(t *testing.T) {
 func TestPreferCenter(t *testing.T) {
 	r := NewRobot(3);
 	checkGenMove(t, r, Black, 
-`.,.
+`...
  .@.
  ...`);
 }
