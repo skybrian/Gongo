@@ -8,6 +8,7 @@ package gongo
 import (
 	"fmt";
 	"rand";
+	"time";
 )
 
 // === Public API ===
@@ -16,7 +17,7 @@ type Randomness interface {
 	Intn(n int) int;
 }
 
-var defaultRandomness = rand.New(rand.NewSource(1));
+var defaultRandomness = rand.New(rand.NewSource(time.Nanoseconds()));
 
 type Config struct {
 	BoardSize int;
@@ -43,7 +44,11 @@ func NewConfiguredRobot(config Config) GoRobot {
 	} else {
 		result.randomness = defaultRandomness;
 	}
-	result.SetBoardSize(config.BoardSize);
+	if config.BoardSize > 0 {
+		result.SetBoardSize(config.BoardSize);
+	} else {
+		result.SetBoardSize(9);
+	}
 	return result;	
 }
 

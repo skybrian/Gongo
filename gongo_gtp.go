@@ -30,7 +30,7 @@ import (
 
 // Executes GTP commands using the specified robot.
 // Returns nil after the "quit" command is handled,
-// or non nil for an I/O error. 
+// or non nil for an I/O error (which could be EOF). 
 func Run(robot GoRobot, input io.Reader, out io.Writer) os.Error {
 	in := bufio.NewReader(input);
 	for {
@@ -330,6 +330,6 @@ func vertexToString(x, y int) (result string, ok bool) {
 		return fmt.Sprintf("invalid: (%v,%v)", x, y), false;
 	}
 	x_letter := byte(x) - 1 + 'A';
-	if x_letter >= 'I' { x_letter--; }
+	if x_letter >= 'I' { x_letter++; }
 	return fmt.Sprintf("%c%v", x_letter, y ), true;
 }

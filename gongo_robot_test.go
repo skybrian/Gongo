@@ -9,6 +9,7 @@ import (
 
 func TestCaptureAndSuicideRules(t *testing.T) {
 	r := NewRobot(3);
+	assertEqualsInt(t, 3, r.GetBoardSize(), "wrong board size");
 	checkBoard(t, r,
 `...
  ...

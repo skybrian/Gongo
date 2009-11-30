@@ -80,14 +80,10 @@ func TestPlay(t *testing.T) {
 }
 
 func TestGenmove(t *testing.T) {
-	g := NewFakeRobot();
-	g.send_x = 3;
-	g.send_y = 10;
-	g.send_moveResult = Played;
-	checkCommand(t, g, "genmove black", "C10");
-	if Black != g.color {
-		t.Errorf("expected %v but got %v", Black, g.color);
-	}
+	checkGenmove(t, 3, 10, "C10");
+	checkGenmove(t, 8, 4, "H4");
+	checkGenmove(t, 9, 4, "J4");
+	checkGenmove(t, 10, 4, "K4");
 }
 
 func TestGenmove_Passed(t *testing.T) {
@@ -195,6 +191,17 @@ func (r *fake_robot) GetCell(x, y int) Color {
 	return r.send_cell[x][y];
 }
 
+func checkGenmove(t *testing.T, x,y int, expected string) {
+	g := NewFakeRobot();
+	g.send_x = x;
+	g.send_y = y;
+	g.send_moveResult = Played;
+	checkCommand(t, g, "genmove black", expected);
+	if Black != g.color {
+		t.Errorf("expected %v but got %v", Black, g.color);
+	}
+}
+
 func checkColor(t *testing.T, input string, expected Color) {
 	actual, ok := ParseColor(input);
 	if !ok {
@@ -219,7 +226,6 @@ func checkVertex(t *testing.T, input string, expectedX int, expectedY int) {
 		t.Error("unexpected Y for", input, "Got:", y);	
 	}
 }
-
 
 func checkCommand(t *testing.T, g GoRobot, input, expected string) {
 	checkRun(t, g, input + "\nquit\n", "= " + expected + "\n\n= \n\n");
