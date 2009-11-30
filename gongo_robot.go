@@ -20,6 +20,7 @@ var defaultRandomness = rand.New(rand.NewSource(1));
 
 type Config struct {
 	BoardSize int;
+	SampleCount int; // number of random samples to take to estimate each move 
 	Randomness Randomness;
 }
 
@@ -32,7 +33,16 @@ func NewConfiguredRobot(config Config) GoRobot {
 	result := new(robot);
 	result.board = new(board);
 	result.scratchBoard = new(board);
-	result.randomness = config.Randomness;
+	if config.SampleCount < 0 {
+		result.sampleCount = config.SampleCount;		
+	} else {
+		result.sampleCount = 1000;
+	}
+	if config.Randomness != nil {
+		result.randomness = config.Randomness;
+	} else {
+		result.randomness = defaultRandomness;
+	}
 	result.SetBoardSize(config.BoardSize);
 	return result;	
 }
@@ -566,6 +576,7 @@ type robot struct {
 	board *board;
 	randomness Randomness;
 	komi float;
+	sampleCount int;
 	
 	// Contains a hash of each previous board in the current game,
 	// for determining whether a move would violate positional superko
@@ -622,7 +633,7 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 		}
 	}
 	
-	r.findWins(1000);
+	r.findWins(r.sampleCount);
 	
 	// create a list of possible moves
 	candidates := r.candidates; // reuse array to avoid allocation
@@ -710,9 +721,9 @@ func (r *robot) checkLegalMove(move pt) (result moveResult) {
 // with a point and r.hits[pt] will have the number of samples for that point.
 func (r *robot) findWins(numSamples int) {
 	// clear statistics
-	for _, pt := range r.wins {
-		r.wins[pt] = 0;
-		r.hits[pt] = 0;
+	for i := range r.wins {
+		r.wins[i] = 0;
+		r.hits[i] = 0;
 	}
 
 	sb := r.scratchBoard;
@@ -739,13 +750,14 @@ func (r *robot) findWins(numSamples int) {
 	scoring:
 		for i := r.board.moveCount; i < sb.moveCount; i += 2 {
 			pt  := sb.moves[i] & MOVE_TO_PT_MASK;
+
 			// check that it hasn't been played yet
 			for j := r.board.moveCount; j < i; j++ {
 				if sb.moves[j] == pt {
 					continue scoring;
 				}
 			}
-			
+
 			r.wins[pt] += winAmount;
 			r.hits[pt]++;
 		}

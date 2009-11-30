@@ -194,6 +194,17 @@ func TestPreferCenter(t *testing.T) {
  ...`);
 }
 
+func TestGenMoveOnEachBoardSize(t *testing.T) {
+	for i := 3; i <= 13; i+=2 {
+		var c Config;
+		c.BoardSize = i;
+		c.SampleCount = 5;
+		r := NewConfiguredRobot(c);
+		checkGenAnyMove(t, r, Black);
+		checkGenAnyMove(t, r, White);
+	}
+}
+
 // === test internals ===
 
 func TestGenerateAllSize1Games(t *testing.T) {
