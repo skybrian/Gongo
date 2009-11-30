@@ -1,0 +1,19 @@
+Gongo - a Go player written in Go
+Author: Brian Slesinsky
+Date: November 30, 2009
+
+This is a simple computer program that plays Go, but not very well. I
+wrote it to learn the Go programming language. It's mostly of interest
+as a curiosity, a starting point for people who might want to write
+other Go robots in Go, and as a example of a reasonably well-commented
+program written in the Go language.
+
+The algorithm is the same (I think!) as the Java reference bot by Don Dailey,
+which is described here:
+
+http://groups.google.com/group/computer-go-archive/browse_thread/thread/bda08b9c37f0803e/8cc424b0fb1b6fe0
+
+You can get the Java reference bot here:
+http://cgos.boardspace.net/public/javabot.zip
+
+See INSTALL for installation.

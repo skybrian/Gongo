@@ -1,0 +1,35 @@
+Installation instructions for Gongo:
+
+1) Install a Go language compiler. I have only tried it with gc, but plan
+to try gccgo soon.
+
+Instructions: http://golang.org/doc/install.html
+
+2) Run tests
+
+cd gongo
+gotest
+
+3) Build the binary:
+
+make main
+
+4) Install GoGui
+
+The "main" program speaks a minimal version of the Go Text Protocol (GTP),
+which is a standard for Go-playing robots. You could use it from the command
+line, but it's better to install a user interface such as GoGui:
+
+http://gogui.sourceforge.net/
+
+5) In GoGui, attach the Gongo program. Select:
+
+   Program -> New Program... 
+
+Then enter the full path to the main executable.
+
+To have Gongo play itself on a 9x9 board:
+
+Game -> New Game
+Game -> Board Size -> 9
+Game -> Computer Color -> Both
