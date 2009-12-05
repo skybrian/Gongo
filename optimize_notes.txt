@@ -1,0 +1,152 @@
+6prof -p 39307 -t 10 main
+
+100 samples (avg 1 threads)
+ 52.00%	gongo·*board·markSurroundedChain
+  8.00%	gongo·*board·makeMove
+  8.00%	gongo·*board·playRandomGame
+  8.00%	gongo·*board·wouldFillEye
+  6.00%	dodiv
+  4.00%	gongo·*robot·findWins
+  3.00%	gongo·*board·capture
+  3.00%	rand·*rngSource·Int63
+  3.00%	syscall·Syscall
+  1.00%	_modv
+  1.00%	gongo·*board·hasLiberties
+  1.00%	rand·*Rand·Int63
+  1.00%	rand·*Rand·Int63n
+  1.00%	rand·*Rand·Intn
+
+After first fix:
+
+100 samples (avg 1 threads)
+ 52.00%	gongo·*board·markSurroundedChain
+ 11.00%	gongo·*board·playRandomGame
+  8.00%	gongo·*board·makeMove
+  5.00%	_div64by32
+  5.00%	gongo·*robot·findWins
+  3.00%	dodiv
+  3.00%	gongo·*board·wouldFillEye
+  3.00%	rand·*Rand·Int63
+  2.00%	rand·*Rand·Int63n
+  2.00%	rand·*rngSource·Int63
+  2.00%	syscall·Syscall
+  1.00%	gongo·*board·capture
+  1.00%	gongo·*board·copyFrom
+  1.00%	gongo·*board·hasLiberties
+  1.00%	runtime·int64mod
+
+100 samples (avg 1 threads)
+ 47.00%	gongo·*board·markSurroundedChain
+  8.00%	dodiv
+  8.00%	gongo·*board·makeMove
+  7.00%	gongo·*board·playRandomGame
+  4.00%	gongo·*board·wouldFillEye
+  4.00%	gongo·*robot·findWins
+  4.00%	rand·*Rand·Int63
+  3.00%	_div64by32
+  3.00%	gongo·*board·capture
+  3.00%	rand·*Rand·Int63n
+  3.00%	rand·*rngSource·Int63
+  3.00%	syscall·Syscall
+  1.00%	gongo·*board·getEasyScore
+  1.00%	gongo·*board·hasLiberties
+  1.00%	rand·*Rand·Intn
+
+----
+
+Converting struct field refs to local variables doesn't help (reverted):
+
+before:
+  5093,5364,5364
+  5106,5147,5224
+
+after:
+  4837,4875,4610
+  4833,4792,4960
+  4872,4875,4993
+
+Unrolling direction loop helps:
+
+after:
+  5893, 5825, 5933
+  5833, 5871, 5780
+
+$ 6prof -p 40068 -t 10 main
+100 samples (avg 1 threads)
+ 44.00%	gongo·*board·markSurroundedChain
+ 13.00%	dodiv
+  9.00%	_div64by32
+  6.00%	gongo·*robot·findWins
+  6.00%	syscall·Syscall
+  4.00%	gongo·*board·playRandomGame
+  4.00%	gongo·*board·wouldFillEye
+  3.00%	gongo·*board·makeMove
+  3.00%	rand·*Rand·Int63
+  2.00%	gongo·*board·capture
+  2.00%	rand·*Rand·Int63n
+  1.00%	gongo·*board·hasLiberties
+  1.00%	rand·*rngSource·Int63
+  1.00%	runtime·int64mod
+  1.00%	runtime·uint64mod
+
+Replacing if with switch helps:
+
+after:
+  5991, 6060, 6082
+  6006, 6183, 6195
+
+$ 6prof -p 40198 -t 10 main
+100 samples (avg 1 threads)
+ 31.00%	gongo·*board·markSurroundedChain
+ 14.00%	gongo·*board·playRandomGame
+ 12.00%	dodiv
+  8.00%	_div64by32
+  6.00%	rand·*rngSource·Int63
+  5.00%	_modv
+  5.00%	gongo·*board·makeMove
+  5.00%	gongo·*board·wouldFillEye
+  4.00%	gongo·*robot·findWins
+  4.00%	syscall·Syscall
+  2.00%	gongo·*board·hasLiberties
+  2.00%	rand·*Rand·Int63n
+  1.00%	gongo·*board·capture
+  1.00%	gongo·*board·getEasyScore
+
+$ 6prof -p 40198 -t 10 main
+100 samples (avg 1 threads)
+ 39.00%	gongo·*board·markSurroundedChain
+ 12.00%	gongo·*board·playRandomGame
+  9.00%	dodiv
+  8.00%	gongo·*board·makeMove
+  8.00%	gongo·*robot·findWins
+  4.00%	gongo·*board·getEasyScore
+  4.00%	gongo·*board·wouldFillEye
+  4.00%	rand·*rngSource·Int63
+  3.00%	runtime·uint64mod
+  2.00%	_div64by32
+  2.00%	rand·*Rand·Int63n
+  2.00%	syscall·Syscall
+  1.00%	gongo·*board·capture
+  1.00%	gongo·*board·hasLiberties
+  1.00%	rand·*Rand·Intn
+
+replacing array access to dirOffset with expressions helps:
+
+after:
+  6094, 6131, 6160
+  6138, 6145, 6158
+
+100 samples (avg 1 threads)
+ 40.00%	gongo·*board·markSurroundedChain
+ 19.00%	gongo·*board·playRandomGame
+  7.00%	_div64by32
+  7.00%	gongo·*board·makeMove
+
+100 samples (avg 1 threads)
+ 32.00%	gongo·*board·markSurroundedChain
+ 18.00%	gongo·*board·playRandomGame
+ 11.00%	gongo·*board·makeMove
+  8.00%	dodiv
+
+
+
