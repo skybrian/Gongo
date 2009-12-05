@@ -510,13 +510,9 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	chainCount = 0;
 	chainColor := b.cells[target];
 
-	chainPts := b.chainPoints;
-	cells := b.cells;
-	dirs := b.dirOffset;
-
-	chainPts[chainCount] = target;
+	b.chainPoints[chainCount] = target;
 	chainCount++;
-	cells[target] |= CELL_IN_CHAIN;
+	b.cells[target] |= CELL_IN_CHAIN;
 
 	// Visit each point, verify that has no liberties, and add its neighbors to the
 	// end of chainPoints.
@@ -526,23 +522,23 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	// - Points between visitedCount and chainCount are known to be in the chain
 	// but still need to be visited.
 	for visitedCount := 0; visitedCount < chainCount; visitedCount++ {
-		thisPt := chainPts[visitedCount];
+		thisPt := b.chainPoints[visitedCount];
 		for direction := 0; direction < 4; direction++ {
-			neighborPt := thisPt + dirs[direction];
+			neighborPt := thisPt + b.dirOffset[direction];
 
-			if cells[neighborPt] == EMPTY {
+			if b.cells[neighborPt] == EMPTY {
 				// Found a liberty. Revert marks and return.
 				for i := 0; i < chainCount; i++ {
-					cells[chainPts[i]] ^= CELL_IN_CHAIN
+					b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
 				}
 				return 0;
 			}
 
-			if cells[neighborPt] == chainColor {
+			if b.cells[neighborPt] == chainColor {
 				// add unvisited same-color neighbor to chain
 				// (if it were visited, the comparison would fail)
-				chainPts[chainCount] = neighborPt;
-				cells[neighborPt] |= CELL_IN_CHAIN;
+				b.chainPoints[chainCount] = neighborPt;
+				b.cells[neighborPt] |= CELL_IN_CHAIN;
 				chainCount++;
 			}
 		}
