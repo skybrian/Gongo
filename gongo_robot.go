@@ -530,8 +530,9 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 
 		neighborPt := thisPt + b.dirOffset[0];
 		switch b.cells[neighborPt] {
-		case EMPTY: goto revert;
-		case chainColor: 
+		case EMPTY:
+			goto revert
+		case chainColor:
 			b.chainPoints[chainCount] = neighborPt;
 			b.cells[neighborPt] |= CELL_IN_CHAIN;
 			chainCount++;
@@ -539,8 +540,9 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 
 		neighborPt = thisPt + b.dirOffset[1];
 		switch b.cells[neighborPt] {
-		case EMPTY: goto revert;
-		case chainColor: 
+		case EMPTY:
+			goto revert
+		case chainColor:
 			b.chainPoints[chainCount] = neighborPt;
 			b.cells[neighborPt] |= CELL_IN_CHAIN;
 			chainCount++;
@@ -548,8 +550,9 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 
 		neighborPt = thisPt + b.dirOffset[2];
 		switch b.cells[neighborPt] {
-		case EMPTY: goto revert;
-		case chainColor: 
+		case EMPTY:
+			goto revert
+		case chainColor:
 			b.chainPoints[chainCount] = neighborPt;
 			b.cells[neighborPt] |= CELL_IN_CHAIN;
 			chainCount++;
@@ -557,8 +560,9 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 
 		neighborPt = thisPt + b.dirOffset[3];
 		switch b.cells[neighborPt] {
-		case EMPTY: goto revert;
-		case chainColor: 
+		case EMPTY:
+			goto revert
+		case chainColor:
 			b.chainPoints[chainCount] = neighborPt;
 			b.cells[neighborPt] |= CELL_IN_CHAIN;
 			chainCount++;
