@@ -7,6 +7,9 @@ package gongo
 
 import (
 	"fmt";
+	"log";
+	"math";
+	"os";
 	"rand";
 	"time";
 )
@@ -23,17 +26,23 @@ type Config struct {
 	BoardSize	int;
 	SampleCount	int;	// number of random samples to take to estimate each move
 	Randomness	Randomness;
+	Log		*log.Logger;
 }
 
 func NewRobot(boardSize int) GoRobot {
-	config := Config{BoardSize: boardSize, Randomness: defaultRandomness};
-	return NewConfiguredRobot(config);
+	return NewConfiguredRobot(Config{BoardSize: boardSize})
 }
 
 func NewConfiguredRobot(config Config) GoRobot {
 	result := new(robot);
 	result.board = new(board);
 	result.scratchBoard = new(board);
+
+	if config.BoardSize > 0 {
+		result.SetBoardSize(config.BoardSize)
+	} else {
+		result.SetBoardSize(9)
+	}
 	if config.SampleCount < 0 {
 		result.sampleCount = config.SampleCount
 	} else {
@@ -44,10 +53,10 @@ func NewConfiguredRobot(config Config) GoRobot {
 	} else {
 		result.randomness = defaultRandomness
 	}
-	if config.BoardSize > 0 {
-		result.SetBoardSize(config.BoardSize)
+	if config.Log != nil {
+		result.log = config.Log
 	} else {
-		result.SetBoardSize(9)
+		result.log = log.New(os.Stderr, nil, "[gongo]", log.Ltime)
 	}
 	return result;
 }
@@ -586,6 +595,7 @@ func (b *board) wouldFillEye(move pt) bool {
 type robot struct {
 	board		*board;
 	randomness	Randomness;
+	log		*log.Logger;
 	komi		float;
 	sampleCount	int;
 
@@ -640,7 +650,11 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 		}
 	}
 
+	startTime := time.Nanoseconds();
 	r.findWins(r.sampleCount);
+	stopTime := time.Nanoseconds();
+	elapsedTimeSecs := float64(stopTime-startTime) / math.Pow10(9);
+	r.log.Logf("playouts/second: %.0f", float64(r.sampleCount)/elapsedTimeSecs);
 
 	// create a list of possible moves
 	candidates := r.candidates;	// reuse array to avoid allocation
