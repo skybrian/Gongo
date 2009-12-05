@@ -528,43 +528,43 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 		//   - if the neighbor is empty, revert.
 		//   - if the neighbor is the same color, mark and add to chainPoints
 
-		neighborPt := thisPt + b.dirOffset[0];
-		switch b.cells[neighborPt] {
+		rightPt := thisPt + b.dirOffset[0];
+		switch b.cells[rightPt] {
 		case EMPTY:
 			goto revert
 		case chainColor:
-			b.chainPoints[chainCount] = neighborPt;
-			b.cells[neighborPt] |= CELL_IN_CHAIN;
+			b.chainPoints[chainCount] = rightPt;
+			b.cells[rightPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
 
-		neighborPt = thisPt + b.dirOffset[1];
-		switch b.cells[neighborPt] {
+		leftPt := thisPt + b.dirOffset[1];
+		switch b.cells[leftPt] {
 		case EMPTY:
 			goto revert
 		case chainColor:
-			b.chainPoints[chainCount] = neighborPt;
-			b.cells[neighborPt] |= CELL_IN_CHAIN;
+			b.chainPoints[chainCount] = leftPt;
+			b.cells[leftPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
 
-		neighborPt = thisPt + b.dirOffset[2];
-		switch b.cells[neighborPt] {
+		upPt := thisPt + b.dirOffset[2];
+		switch b.cells[upPt] {
 		case EMPTY:
 			goto revert
 		case chainColor:
-			b.chainPoints[chainCount] = neighborPt;
-			b.cells[neighborPt] |= CELL_IN_CHAIN;
+			b.chainPoints[chainCount] = upPt;
+			b.cells[upPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
 
-		neighborPt = thisPt + b.dirOffset[3];
-		switch b.cells[neighborPt] {
+		downPt := thisPt + b.dirOffset[3];
+		switch b.cells[downPt] {
 		case EMPTY:
 			goto revert
 		case chainColor:
-			b.chainPoints[chainCount] = neighborPt;
-			b.cells[neighborPt] |= CELL_IN_CHAIN;
+			b.chainPoints[chainCount] = downPt;
+			b.cells[downPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
 	}
