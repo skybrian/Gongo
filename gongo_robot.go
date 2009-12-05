@@ -528,7 +528,7 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 		//   - if the neighbor is empty, revert.
 		//   - if the neighbor is the same color, mark and add to chainPoints
 
-		rightPt := thisPt + b.dirOffset[0];
+		rightPt := thisPt + pt(1);
 		switch b.cells[rightPt] {
 		case EMPTY:
 			goto revert
@@ -538,7 +538,7 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 			chainCount++;
 		}
 
-		leftPt := thisPt + b.dirOffset[1];
+		leftPt := thisPt + pt(-1);
 		switch b.cells[leftPt] {
 		case EMPTY:
 			goto revert
@@ -548,7 +548,7 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 			chainCount++;
 		}
 
-		upPt := thisPt + b.dirOffset[2];
+		upPt := thisPt + pt(b.stride);
 		switch b.cells[upPt] {
 		case EMPTY:
 			goto revert
@@ -558,7 +558,7 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 			chainCount++;
 		}
 
-		downPt := thisPt + b.dirOffset[3];
+		downPt := thisPt + pt(-b.stride);
 		switch b.cells[downPt] {
 		case EMPTY:
 			goto revert
