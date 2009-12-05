@@ -523,28 +523,72 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	// but still need to be visited.
 	for visitedCount := 0; visitedCount < chainCount; visitedCount++ {
 		thisPt := b.chainPoints[visitedCount];
-		for direction := 0; direction < 4; direction++ {
-			neighborPt := thisPt + b.dirOffset[direction];
 
-			if b.cells[neighborPt] == EMPTY {
-				// Found a liberty. Revert marks and return.
-				for i := 0; i < chainCount; i++ {
-					b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
-				}
-				return 0;
-			}
+		// unrolled loop on the neighboring point in each direction:
+		//   - if the neighbor is empty, revert.
+		//   - if the neighbor is the same color, mark and add to chainPoints
 
-			if b.cells[neighborPt] == chainColor {
-				// add unvisited same-color neighbor to chain
-				// (if it were visited, the comparison would fail)
-				b.chainPoints[chainCount] = neighborPt;
-				b.cells[neighborPt] |= CELL_IN_CHAIN;
-				chainCount++;
-			}
+		neighborPt := thisPt + b.dirOffset[0];
+		if b.cells[neighborPt] == EMPTY {
+			goto revert
+		}
+
+		if b.cells[neighborPt] == chainColor {
+			// add unvisited same-color neighbor to chain
+			// (if it were visited, the comparison would fail)
+			b.chainPoints[chainCount] = neighborPt;
+			b.cells[neighborPt] |= CELL_IN_CHAIN;
+			chainCount++;
+		}
+
+		neighborPt = thisPt + b.dirOffset[1];
+		if b.cells[neighborPt] == EMPTY {
+			goto revert
+		}
+
+		if b.cells[neighborPt] == chainColor {
+			// add unvisited same-color neighbor to chain
+			// (if it were visited, the comparison would fail)
+			b.chainPoints[chainCount] = neighborPt;
+			b.cells[neighborPt] |= CELL_IN_CHAIN;
+			chainCount++;
+		}
+
+		neighborPt = thisPt + b.dirOffset[2];
+		if b.cells[neighborPt] == EMPTY {
+			goto revert
+		}
+
+		if b.cells[neighborPt] == chainColor {
+			// add unvisited same-color neighbor to chain
+			// (if it were visited, the comparison would fail)
+			b.chainPoints[chainCount] = neighborPt;
+			b.cells[neighborPt] |= CELL_IN_CHAIN;
+			chainCount++;
+		}
+
+		neighborPt = thisPt + b.dirOffset[3];
+		if b.cells[neighborPt] == EMPTY {
+			goto revert
+		}
+
+		if b.cells[neighborPt] == chainColor {
+			// add unvisited same-color neighbor to chain
+			// (if it were visited, the comparison would fail)
+			b.chainPoints[chainCount] = neighborPt;
+			b.cells[neighborPt] |= CELL_IN_CHAIN;
+			chainCount++;
 		}
 	}
 
 	return chainCount;
+
+revert:
+	// Found a liberty. Revert marks and return.
+	for i := 0; i < chainCount; i++ {
+		b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
+	}
+	return 0;
 }
 
 // Returns true if this move would fill in an eye.
