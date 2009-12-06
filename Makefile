@@ -31,7 +31,7 @@ benchmark: package
 	@echo "Done. Executable is: $@"
 
 clean:
-	rm -rf *.[$(OS)o] *.a [$(OS)].out _obj _test _testmain.go main
+	rm -rf *.[$(OS)o] *.a [$(OS)].out _obj _test _testmain.go main benchmark
 
 package: _obj/$(TARG).a
 
