@@ -547,49 +547,41 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	for visitedCount := 0; visitedCount < chainCount; visitedCount++ {
 		thisPt := b.chainPoints[visitedCount];
 
-		// unrolled loop on the neighboring point in each direction:
-		//   - if the neighbor is empty, revert.
-		//   - if the neighbor is the same color, mark and add to chainPoints
-
 		rightPt := thisPt + pt(1);
+		leftPt := thisPt + pt(-1);
+		upPt := thisPt + pt(b.stride);
+		downPt := thisPt + pt(-b.stride);
+
 		rightCell := b.cells[rightPt];
-		switch rightCell {
-		case EMPTY:
-			goto revert
-		case chainColor:
+		leftCell := b.cells[leftPt];
+		upCell := b.cells[upPt];
+		downCell := b.cells[downPt];
+
+		if leftCell == EMPTY || rightCell == EMPTY || upCell == EMPTY || downCell == EMPTY {
+			// Found a liberty. Revert marks and return.
+			for i := 0; i < chainCount; i++ {
+				b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
+			}
+			return 0;
+		}
+
+		// add surrounding points to the chain if they're the same color
+		if rightCell == chainColor {
 			b.chainPoints[chainCount] = rightPt;
 			b.cells[rightPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
-
-		leftPt := thisPt + pt(-1);
-		leftCell := b.cells[leftPt];
-		switch leftCell {
-		case EMPTY:
-			goto revert
-		case chainColor:
+		if leftCell == chainColor {
 			b.chainPoints[chainCount] = leftPt;
 			b.cells[leftPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
-
-		upPt := thisPt + pt(b.stride);
-		upCell := b.cells[upPt];
-		switch upCell {
-		case EMPTY:
-			goto revert
-		case chainColor:
+		if upCell == chainColor {
 			b.chainPoints[chainCount] = upPt;
 			b.cells[upPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
-
-		downPt := thisPt + pt(-b.stride);
-		downCell := b.cells[downPt];
-		switch downCell {
-		case EMPTY:
-			goto revert
-		case chainColor:
+		if downCell == chainColor {
 			b.chainPoints[chainCount] = downPt;
 			b.cells[downPt] |= CELL_IN_CHAIN;
 			chainCount++;
@@ -597,13 +589,6 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	}
 
 	return chainCount;
-
-revert:
-	// Found a liberty. Revert marks and return.
-	for i := 0; i < chainCount; i++ {
-		b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
-	}
-	return 0;
 }
 
 // Returns true if this move would fill in an eye.

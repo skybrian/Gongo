@@ -148,5 +148,41 @@ after:
  11.00%	gongo·*board·makeMove
   8.00%	dodiv
 
+now using benchmark (50 moves):
 
+77 samples (avg 1 threads)
+ 35.06%	gongo·*board·markSurroundedChain
+ 19.48%	gongo·*board·playRandomGame
+  9.09%	gongo·*robot·findWins
+  6.49%	_div64by32
+  6.49%	gongo·*board·makeMove
+  6.49%	gongo·*board·wouldFillEye
+  5.19%	rand·*rngSource·Int63
+  2.60%	dodiv
+  2.60%	rand·*Rand·Int63
+  1.30%	_modv
+  1.30%	etext
+  1.30%	gongo·*board·capture
+  1.30%	gongo·*board·getEasyScore
 
+move pt variables first:
+
+after: 
+  6161, 6199, 6329
+  6220, 6195, 6284
+
+move cell accesses first - ok
+check all cells for empty first - better
+
+ 6440, 6420, 6489
+ 6376, 6393, 6471
+ 6317, 6263, 6303
+
+convert switches back to if statements:
+
+ 6396, 6240, 6378
+
+remove goto:
+
+ 6316, 6570, 6283
+ 6385, 6311, 6490
