@@ -200,13 +200,19 @@ func (m moveResult) toPlayResult(captures int) (bool, string) {
 	return m.ok(), m.String();
 }
 
+const (
+	maxBoardSize	= 25;
+	maxRowCount	= maxBoardSize + 2;	// barriers above and below
+	stride		= maxBoardSize + 1;	// single barrier for both left and right
+)
+
 type board struct {
 	size		int;
 	stride		int;	// boardSize + 1 to account for barrier column
 	dirOffset	[4]pt;	// amount to add to a pt to move in each cardinal direction
 	diagOffset	[4]pt;	// amount to add to a pt to move in each diagonal direction
 
-	cells		[]cell;
+	cells		[stride*maxRowCount + 1]cell;
 	allPoints	[]pt;	// List of all points on the board. (Skips barrier cells.)
 
 	// List of moves in this game
@@ -219,7 +225,10 @@ type board struct {
 	candidates	[]pt;	// moves to choose from; used in playRandomGame.
 }
 
-func (b *board) clearBoard(newSize int) {
+func (b *board) clearBoard(newSize int) (ok bool) {
+	if newSize > maxBoardSize {
+		return false
+	}
 	b.size = newSize;
 	b.stride = newSize + 1;
 	b.dirOffset[0] = pt(1);			// right
@@ -231,8 +240,6 @@ func (b *board) clearBoard(newSize int) {
 	b.diagOffset[2] = pt(-b.stride - 1);	// sw
 	b.diagOffset[3] = pt(-b.stride + 1);	// se
 
-	rowCount := newSize + 2;
-	b.cells = make([]cell, rowCount*b.stride+1);	// 1 extra for diagonal move to edge
 	b.allPoints = make([]pt, b.size*b.size);
 
 	// fill entire array with board edge
@@ -258,6 +265,7 @@ func (b *board) clearBoard(newSize int) {
 
 	b.chainPoints = make([]pt, len(b.allPoints));
 	b.candidates = make([]pt, len(b.allPoints));
+	return true;
 }
 
 func (b board) GetBoardSize() int	{ return b.size }
@@ -653,7 +661,9 @@ type robot struct {
 }
 
 func (r *robot) SetBoardSize(newSize int) bool {
-	r.board.clearBoard(newSize);
+	if !r.board.clearBoard(newSize) {
+		return false
+	}
 	r.scratchBoard.clearBoard(newSize);
 	r.boardHashes = make([]int64, len(r.board.moves));
 	r.candidates = make([]pt, len(r.board.allPoints));

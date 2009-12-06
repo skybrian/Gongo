@@ -216,3 +216,7 @@ Orego (another Java bot; different board data structure and algorithm), for comp
   17218
   16554
   16784
+
+Change the board cells from a slice to an array:
+  6471, 6448, 6463
+  6536, 6453, 6130
