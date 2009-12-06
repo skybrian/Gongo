@@ -217,6 +217,9 @@ Orego (another Java bot; different board data structure and algorithm), for comp
   16554
   16784
 
-Change the board cells from a slice to an array:
+Changing the board cells from a slice to an array helps:
   6471, 6448, 6463
   6536, 6453, 6130
+
+Changing chainPoints from a slice to an array doesn't help:
+  6089, 6114, 6111 
