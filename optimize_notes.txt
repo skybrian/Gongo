@@ -211,3 +211,8 @@ Javabot, for comparison:
   6250, 6666, 6849
   6849, 6329, 6756
   6622, 6711, 6578
+
+Orego (another Java bot; different board data structure and algorithm), for comparison:
+  17218
+  16554
+  16784
