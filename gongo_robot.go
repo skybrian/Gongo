@@ -540,7 +540,7 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	// Visit each point, verify that has no liberties, and add its neighbors to the
 	// end of chainPoints.
 	// Loop invariants:
-	// - Points between 0 and visitedCount-1 are surroundded and their same-color
+	// - Points between 0 and visitedCount-1 are surrounded and their same-color
 	// neighbors are in chainPoints.
 	// - Points between visitedCount and chainCount are known to be in the chain
 	// but still need to be visited.
