@@ -16,10 +16,18 @@ GOTESTFILES=\
 	gongo_gtp_test.go \
 	gongo_robot_test.go
 
+all: main benchmark
+
 # build "main" executable
 main: package
 	$(GC) -I_obj main.go
 	$(LD) -L_obj -o $@ main.$O
+	@echo "Done. Executable is: $@"
+
+# build "benchmark" executable
+benchmark: package
+	$(GC) -I_obj benchmark.go
+	$(LD) -L_obj -o $@ benchmark.$O
 	@echo "Done. Executable is: $@"
 
 clean:

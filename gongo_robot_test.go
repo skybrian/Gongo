@@ -1,7 +1,6 @@
 package gongo
 
 import (
-	"bytes";
 	"fmt";
 	"strings";
 	"testing";
@@ -360,7 +359,7 @@ func makeBoard(boardString string) board {
 
 func checkBoard(t *testing.T, b GoBoard, expectedBoard string) {
 	expected := trimBoard(expectedBoard);
-	actual := loadBoard(b);
+	actual := BoardToString(b);
 	if expected != actual {
 		t.Errorf("board is different. Expected:\n%v\nActual:\n%v\n", expected, actual)
 	}
@@ -378,27 +377,6 @@ func trimBoard(s string) string {
 		}
 	}
 	return strings.Join(linesOut[0:goodLines], "\n");
-}
-
-func loadBoard(b GoBoard) string {
-	var out bytes.Buffer;
-	size := b.GetBoardSize();
-	for y := size; y >= 1; y-- {
-		for x := 1; x <= size; x++ {
-			switch b.GetCell(x, y) {
-			case Empty:
-				out.WriteString(".")
-			case White:
-				out.WriteString("O")
-			case Black:
-				out.WriteString("@")
-			}
-		}
-		if y > 1 {
-			out.WriteString("\n")
-		}
-	}
-	return out.String();
 }
 
 func setUpBoard(r GoRobot, boardString string) {
@@ -447,7 +425,7 @@ func generateAllGames(size int) (games map[string]int, total int) {
 	for {
 		b.clearBoard(size);
 		b.playRandomGame(r);
-		boardString := loadBoard(b);
+		boardString := BoardToString(b);
 		if _, ok := games[boardString]; ok {
 			games[boardString]++
 		} else {

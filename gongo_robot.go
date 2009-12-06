@@ -6,6 +6,7 @@ package gongo
 // http://groups.google.com/group/computer-go-archive/browse_thread/thread/bda08b9c37f0803e/8cc424b0fb1b6fe0
 
 import (
+	"bytes";
 	"fmt";
 	"log";
 	"math";
@@ -60,6 +61,28 @@ func NewConfiguredRobot(config Config) GoRobot {
 	}
 	return result;
 }
+
+func BoardToString(b GoBoard) string {
+	var out bytes.Buffer;
+	size := b.GetBoardSize();
+	for y := size; y >= 1; y-- {
+		for x := 1; x <= size; x++ {
+			switch b.GetCell(x, y) {
+			case Empty:
+				out.WriteString(".")
+			case White:
+				out.WriteString("O")
+			case Black:
+				out.WriteString("@")
+			}
+		}
+		if y > 1 {
+			out.WriteString("\n")
+		}
+	}
+	return out.String();
+}
+
 
 // === Implementation of a Go board ===
 
@@ -529,7 +552,8 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 		//   - if the neighbor is the same color, mark and add to chainPoints
 
 		rightPt := thisPt + pt(1);
-		switch b.cells[rightPt] {
+		rightCell := b.cells[rightPt];
+		switch rightCell {
 		case EMPTY:
 			goto revert
 		case chainColor:
@@ -539,7 +563,8 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 		}
 
 		leftPt := thisPt + pt(-1);
-		switch b.cells[leftPt] {
+		leftCell := b.cells[leftPt];
+		switch leftCell {
 		case EMPTY:
 			goto revert
 		case chainColor:
@@ -549,7 +574,8 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 		}
 
 		upPt := thisPt + pt(b.stride);
-		switch b.cells[upPt] {
+		upCell := b.cells[upPt];
+		switch upCell {
 		case EMPTY:
 			goto revert
 		case chainColor:
@@ -559,7 +585,8 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 		}
 
 		downPt := thisPt + pt(-b.stride);
-		switch b.cells[downPt] {
+		downCell := b.cells[downPt];
+		switch downCell {
 		case EMPTY:
 			goto revert
 		case chainColor:
@@ -617,6 +644,9 @@ func (b *board) wouldFillEye(move pt) bool {
 	}
 	return enemies+haveEdge < 2;
 }
+
+func (r *robot) String()	{}
+
 
 // === Implementation of GoRobot interface ===
 
