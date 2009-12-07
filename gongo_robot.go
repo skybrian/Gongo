@@ -21,7 +21,13 @@ type Randomness interface {
 	Intn(n int) int;
 }
 
-var defaultRandomness = rand.New(rand.NewSource(time.Nanoseconds()))
+type randomness struct {
+	src rand.Source;
+}
+
+func (r *randomness) Intn(n int) int	{ return int(r.src.Int63()&0x7FFFFFFF) % n }
+
+var defaultRandomness = randomness{src: rand.NewSource(time.Nanoseconds())}
 
 type Config struct {
 	BoardSize	int;
@@ -52,7 +58,7 @@ func NewConfiguredRobot(config Config) GoRobot {
 	if config.Randomness != nil {
 		result.randomness = config.Randomness
 	} else {
-		result.randomness = defaultRandomness
+		result.randomness = &defaultRandomness
 	}
 	if config.Log != nil {
 		result.log = config.Log

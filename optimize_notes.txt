@@ -315,3 +315,78 @@ With neighbor counts, plus makeMove optimizations:
   0.56%	rand·*Rand·Intn
   0.56%	runtime·int64mod
   0.56%	syscall·Syscall
+
+Hmm... cumulative times point to 42% in Rand.Intn!
+
+6prof -hs ./benchmark 50 3
+
+180 samples (avg 1 threads)
+ 22.78%	 22.78%	gongo·*board·markSurroundedChain
+ 16.67%	 27.78%	dodiv
+ 11.11%	 11.11%	_div64by32
+  9.44%	 36.67%	gongo·*board·makeMove
+  6.11%	 96.11%	gongo·*robot·findWins
+  6.11%	 89.44%	gongo·*board·playRandomGame
+  6.11%	  9.44%	rand·*Rand·Int63
+  4.44%	  4.44%	gongo·*board·wouldFillEye
+  3.89%	  3.89%	rand·*rngSource·Int63
+  3.33%	 20.56%	gongo·*board·capture
+  2.78%	 15.56%	_modv
+  1.67%	 41.67%	rand·*Rand·Int63n
+  1.11%	 15.00%	_modvu
+  1.11%	  6.67%	gongo·*board·hasLiberties
+  1.11%	  1.11%	gongo·*board·getEasyScore
+  0.56%	 42.22%	rand·*Rand·Intn
+  0.56%	 15.00%	runtime·uint64mod
+  0.00%	 96.11%	goexit
+  0.00%	 96.11%	gongo·*robot·GenMove
+  0.00%	 96.11%	mainstart
+  0.00%	 96.11%	main·main
+  0.00%	 15.56%	runtime·int64mod
+  0.00%	  0.56%	MHeap_LookupMaybe
+  0.00%	  0.56%	etext
+  0.00%	  0.56%	os·*File·Write
+  0.00%	  0.56%	syscall·Syscall
+  0.00%	  0.56%	syscall·Write
+
+Typical strack traces:
+
+rand·*rngSource·Int63()+0x80 
+rand·*Rand·Int63()+0x36 
+rand·*Rand·Int63n()+0x88 
+rand·*Rand·Intn()+0x33 
+gongo·*board·playRandomGame()+0x140 
+gongo·*robot·findWins()+0xe4 
+gongo·*robot·GenMove()+0x10c 
+main·main()+0x1a2 
+mainstart()+0xf 
+
+dodiv()+0x1a3 
+_modv()+0xa8 
+runtime·int64mod()+0x46 
+rand·*Rand·Int63n()+0xd4 
+rand·*Rand·Intn()+0x33 
+gongo·*board·playRandomGame()+0x140 
+gongo·*robot·findWins()+0xe4 
+gongo·*robot·GenMove()+0x10c 
+main·main()+0x1a2 
+mainstart()+0xf 
+
+Reimplement randomness to avoid slow division for big win:
+  10095 10298 10216
+   9893    9831 10269
+   9882    9591 10126
+
+141 samples (avg 1 threads)
+ 29.08%	gongo·*board·markSurroundedChain
+ 17.73%	gongo·*board·makeMove
+ 14.18%	gongo·*board·playRandomGame
+ 10.64%	gongo·*robot·findWins
+  8.51%	gongo·*board·wouldFillEye
+  6.38%	gongo·*randomness·Intn
+  4.26%	rand·*rngSource·Int63
+  2.84%	gongo·*board·copyFrom
+  2.13%	gongo·*board·capture
+  1.42%	gongo·*board·getEasyScore
+  1.42%	gongo·*board·hasLiberties
+  0.71%	etext
