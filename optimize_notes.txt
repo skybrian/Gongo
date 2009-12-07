@@ -377,16 +377,21 @@ Reimplement randomness to avoid slow division for big win:
    9893    9831 10269
    9882    9591 10126
 
-141 samples (avg 1 threads)
- 29.08%	gongo·*board·markSurroundedChain
- 17.73%	gongo·*board·makeMove
- 14.18%	gongo·*board·playRandomGame
- 10.64%	gongo·*robot·findWins
-  8.51%	gongo·*board·wouldFillEye
-  6.38%	gongo·*randomness·Intn
-  4.26%	rand·*rngSource·Int63
-  2.84%	gongo·*board·copyFrom
-  2.13%	gongo·*board·capture
-  1.42%	gongo·*board·getEasyScore
-  1.42%	gongo·*board·hasLiberties
-  0.71%	etext
+147 samples (avg 1 threads)
+ 29.93%	 29.93%	gongo·*board·markSurroundedChain
+ 21.77%	 52.38%	gongo·*board·makeMove
+ 15.65%	 88.44%	gongo·*board·playRandomGame
+  8.84%	 12.24%	gongo·*randomness·Intn
+  8.84%	  8.84%	gongo·*board·wouldFillEye
+  8.16%	 96.60%	gongo·*robot·findWins
+  3.40%	  3.40%	rand·*rngSource·Int63
+  1.36%	  1.36%	gongo·*board·getEasyScore
+  0.68%	  8.16%	gongo·*board·hasLiberties
+  0.00%	 96.60%	goexit
+  0.00%	 96.60%	gongo·*robot·GenMove
+  0.00%	 96.60%	mainstart
+  0.00%	 96.60%	main·main
+  0.00%	 22.45%	gongo·*board·capture
+  0.00%	  0.68%	MHeap_LookupMaybe
+  0.00%	  0.68%	etext
+  0.00%	  0.68%	os·*File·Write
