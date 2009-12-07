@@ -1,3 +1,8 @@
 *~
 *.s
-
+*.8
+_obj
+_test
+*.out
+benchmark
+main
