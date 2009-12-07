@@ -224,6 +224,94 @@ Changing the board cells from a slice to an array helps:
 Changing chainPoints from a slice to an array doesn't help:
   6089, 6114, 6111 
 
-Making stride a constant doesn't help:
+Making stride a constant makes it worse (reverted):
   5653, 5739, 5889
 
+No difference if cells is moved to end of struct (reverted):
+  6444, 6340, 6308
+  6339, 6546, 6417
+
+Adding new int array makes it worse (reverted)
+Changing cell to int16 makes it worse (reverted)
+
+Using neighborCounts array for liberty-checking helps a lot:
+  7312, 7362, 7291
+  7148, 7388, 7418
+
+65 samples (avg 1 threads)
+ 18.46%	gongo·*board·makeMove
+ 18.46%	gongo·*board·playRandomGame
+ 16.92%	gongo·*board·markSurroundedChain
+  7.69%	_div64by32
+  7.69%	gongo·*board·wouldFillEye
+  7.69%	gongo·*robot·findWins
+  6.15%	dodiv
+  3.08%	rand·*Rand·Int63n
+  3.08%	rand·*rngSource·Int63
+  1.54%	_modvu
+  1.54%	etext
+  1.54%	gongo·*board·getFriendlyStone
+  1.54%	rand·*Rand·Int63
+  1.54%	rand·*Rand·Intn
+  1.54%	runtime·uint64mod
+
+Upgraded Go to tip. Here are the results (without neighbor counts) again:
+
+  6589, 6600, 6568, 6565
+  6648, 6749, 6636, 6480
+  6550, 6557, 6560, 6646
+
+Started using 3 games when benchmarking because otherwise
+the profiler results are too unstable:
+
+command:  6prof ./benchmark 50 3
+
+216 samples (avg 1 threads)
+ 36.11%	gongo·*board·markSurroundedChain
+  9.72%	dodiv
+  8.80%	gongo·*board·playRandomGame
+  8.33%	_div64by32
+  6.48%	gongo·*board·makeMove
+  5.56%	gongo·*robot·findWins
+  5.09%	gongo·*board·wouldFillEye
+  4.63%	rand·*rngSource·Int63
+  3.70%	rand·*Rand·Int63n
+  2.78%	runtime·uint64mod
+  1.85%	gongo·*board·getEasyScore
+  1.39%	gongo·*board·hasLiberties
+  1.39%	rand·*Rand·Int63
+  0.93%	gongo·*board·capture
+  0.46%	_modv
+  0.46%	_modvu
+  0.46%	bytes·*Buffer·Reset
+  0.46%	etext
+  0.46%	gongo·*board·copyFrom
+  0.46%	runtime·int64mod
+
+With neighbor counts, plus makeMove optimizations:
+
+7643, 7866, 7948
+7659, 7999, 7911
+7731, 7753, 7907
+
+177 samples (avg 1 threads)
+ 21.47%	gongo·*board·markSurroundedChain
+ 11.86%	gongo·*board·makeMove
+ 11.30%	dodiv
+  9.04%	_div64by32
+  9.04%	gongo·*board·playRandomGame
+  9.04%	gongo·*robot·findWins
+  6.78%	gongo·*board·wouldFillEye
+  3.95%	gongo·*board·capture
+  3.39%	rand·*Rand·Int63
+  3.39%	rand·*rngSource·Int63
+  2.82%	rand·*Rand·Int63n
+  1.69%	gongo·*board·getEasyScore
+  1.13%	_modv
+  1.13%	runtime·uint64mod
+  0.56%	_modvu
+  0.56%	etext
+  0.56%	gongo·*board·hasLiberties
+  0.56%	rand·*Rand·Intn
+  0.56%	runtime·int64mod
+  0.56%	syscall·Syscall

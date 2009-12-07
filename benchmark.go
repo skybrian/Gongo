@@ -29,7 +29,7 @@ func main() {
 		}
 		gameCount = val;
 	}
-	if len (os.Args) > 3 {
+	if len(os.Args) > 3 {
 		UsageError()
 	}
 

@@ -203,7 +203,7 @@ func (m moveResult) toPlayResult(captures int) (bool, string) {
 const (
 	maxBoardSize	= 25;
 	maxRowCount	= maxBoardSize + 2;	// barriers above and below
-	stride		= maxBoardSize + 1;	// single barrier for both left and right
+	maxStride	= maxBoardSize + 1;	// single barrier for both left and right
 )
 
 type board struct {
@@ -212,8 +212,9 @@ type board struct {
 	dirOffset	[4]pt;	// amount to add to a pt to move in each cardinal direction
 	diagOffset	[4]pt;	// amount to add to a pt to move in each diagonal direction
 
-	cells		[stride*maxRowCount + 1]cell;
+	cells		[maxStride*maxRowCount + 1]cell;
 	allPoints	[]pt;	// List of all points on the board. (Skips barrier cells.)
+	neighborCounts	[]int;	// Holds counts of how many neighbors a cell has (4 - liberties)
 
 	// List of moves in this game
 	moves		[]pt;
@@ -241,19 +242,24 @@ func (b *board) clearBoard(newSize int) (ok bool) {
 	b.diagOffset[3] = pt(-b.stride + 1);	// se
 
 	b.allPoints = make([]pt, b.size*b.size);
+	b.neighborCounts = make([]int, len(b.cells));
 
 	// fill entire array with board edge
 	for i := 0; i < len(b.cells); i++ {
-		b.cells[i] = EDGE
+		b.cells[i] = EDGE;
+		b.neighborCounts[i] = 4;
 	}
 
-	// set all playable points to empty and fill allPoints list
+	// add empty cells to the board and update allPoints list and neighborCounts
 	pointsAdded := 0;
 	for y := 1; y <= b.size; y++ {
 		for x := 1; x <= b.size; x++ {
 			pt := b.makePt(x, y);
 			b.cells[pt] = EMPTY;
 			b.allPoints[pointsAdded] = pt;
+			for dir := 0; dir < 4; dir++ {
+				b.neighborCounts[pt+b.dirOffset[dir]]--
+			}
 			pointsAdded++;
 		}
 	}
@@ -342,7 +348,8 @@ func (b *board) copyFrom(other *board) {
 		panic("boards must be same size")
 	}
 	for _, pt := range b.allPoints {
-		b.cells[pt] = other.cells[pt]
+		b.cells[pt] = other.cells[pt];
+		b.neighborCounts[pt] = other.neighborCounts[pt];
 	}
 
 	// top off move list; assumes other board may have appended some moves
@@ -464,24 +471,27 @@ func (b *board) makeMove(move pt) (result moveResult, captures int) {
 		return occupied, 0
 	}
 
-	// place stone
+	// place stone and increment neighbor counts
 	b.cells[move] = friendlyStone;
+	b.neighborCounts[move-1]++;
+	b.neighborCounts[move+1]++;
+	b.neighborCounts[move-pt(b.stride)]++;
+	b.neighborCounts[move+pt(b.stride)]++;
 
 	// find any captures and remove them from the board
 	captures = 0;
-	for direction := 0; direction < 4; direction++ {
-		neighborPt := move + b.dirOffset[direction];
-		if b.cells[neighborPt] == enemyStone {
+	for dir := 0; dir < 4; dir++ {
+		neighborPt := move + b.dirOffset[dir];
+		if b.cells[neighborPt] == enemyStone && b.neighborCounts[neighborPt] == 4 {
 			captures += b.capture(neighborPt)
 		}
 	}
 
 	if captures == 0 {
 		// check for suicide
-		if !b.hasLiberties(move) {
-			// illegal move; undo and return
-			b.cells[move] = EMPTY;
-			return suicide, 0;
+		if b.neighborCounts[move] == 4 && !b.hasLiberties(move) {
+			result = suicide;
+			goto revert;
 		}
 	} else if captures == 1 {
 		// check for simple Ko.
@@ -489,9 +499,15 @@ func (b *board) makeMove(move pt) (result moveResult, captures int) {
 		if (lastMove&ONE_CAPTURE) != 0 &&	// previous move captured one stone
 			b.cells[lastMove&MOVE_TO_PT_MASK] == EMPTY {	// this move captured previous move
 			// found a Ko; revert the capture
-			b.cells[lastMove&MOVE_TO_PT_MASK] = enemyStone;
-			b.cells[move] = EMPTY;
-			return ko, 0;
+			revertPt := lastMove & MOVE_TO_PT_MASK;
+			b.cells[revertPt] = enemyStone;
+			for dir := 0; dir < 4; dir++ {
+				neighborPt := revertPt&MOVE_TO_PT_MASK + b.dirOffset[dir];
+				b.neighborCounts[neighborPt]++;
+			}
+			result = ko;
+			captures = 0;
+			goto revert;
 		}
 		move = ONE_CAPTURE | move;
 	}
@@ -499,6 +515,15 @@ func (b *board) makeMove(move pt) (result moveResult, captures int) {
 	b.moves[b.moveCount] = move;
 	b.moveCount++;
 	return played, captures;
+
+revert:
+	// remove previously placed stone and decrement neighbor counts
+	b.cells[move] = EMPTY;
+	for dir := 0; dir < 4; dir++ {
+		neighborPt := move&MOVE_TO_PT_MASK + b.dirOffset[dir];
+		b.neighborCounts[neighborPt]--;
+	}
+	return;
 }
 
 // Given any point in a chain with no liberties, removes all stones in the
@@ -508,9 +533,14 @@ func (b *board) makeMove(move pt) (result moveResult, captures int) {
 func (b *board) capture(target pt) (chainCount int) {
 	chainCount = b.markSurroundedChain(target);
 
-	// Remove the stones from the board
+	// Remove the stones from the board and decrement neighbor counts
 	for i := 0; i < chainCount; i++ {
-		b.cells[b.chainPoints[i]] = EMPTY
+		removePt := b.chainPoints[i];
+		b.cells[removePt] = EMPTY;
+		for dir := 0; dir < 4; dir++ {
+			neighborPt := removePt + b.dirOffset[dir];
+			b.neighborCounts[neighborPt]--;
+		}
 	}
 	return chainCount;
 }
@@ -535,8 +565,8 @@ func (b *board) hasLiberties(target pt) bool {
 // the chain with CELL_IN_CHAIN and adds those points to chainPoints.
 // Returns the number of points found. If the chain is not surrounded,
 // does nothing and returns 0.
-// Preconditions: the target point is occupied and all cells have the
-// CELL_IN_CHAIN flag cleared.
+// Preconditions: the target point is occupied and has no liberties, and all
+// cells have the CELL_IN_CHAIN flag cleared.
 func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	chainCount = 0;
 	chainColor := b.cells[target];
@@ -551,7 +581,7 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	// - Points between 0 and visitedCount-1 are surrounded and their same-color
 	// neighbors are in chainPoints.
 	// - Points between visitedCount and chainCount are known to be in the chain
-	// but still need to be visited.
+	// and to have no liberties, but still need to be visited.
 	for visitedCount := 0; visitedCount < chainCount; visitedCount++ {
 		thisPt := b.chainPoints[visitedCount];
 
@@ -565,31 +595,35 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 		upCell := b.cells[upPt];
 		downCell := b.cells[downPt];
 
-		if leftCell == EMPTY || rightCell == EMPTY || upCell == EMPTY || downCell == EMPTY {
-			// Found a liberty. Revert marks and return.
-			for i := 0; i < chainCount; i++ {
-				b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
-			}
-			return 0;
-		}
-
 		// add surrounding points to the chain if they're the same color
 		if rightCell == chainColor {
+			if b.neighborCounts[rightPt] != 4 {
+				goto revert
+			}
 			b.chainPoints[chainCount] = rightPt;
 			b.cells[rightPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
 		if leftCell == chainColor {
+			if b.neighborCounts[leftPt] != 4 {
+				goto revert
+			}
 			b.chainPoints[chainCount] = leftPt;
 			b.cells[leftPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
 		if upCell == chainColor {
+			if b.neighborCounts[upPt] != 4 {
+				goto revert
+			}
 			b.chainPoints[chainCount] = upPt;
 			b.cells[upPt] |= CELL_IN_CHAIN;
 			chainCount++;
 		}
 		if downCell == chainColor {
+			if b.neighborCounts[downPt] != 4 {
+				goto revert
+			}
 			b.chainPoints[chainCount] = downPt;
 			b.cells[downPt] |= CELL_IN_CHAIN;
 			chainCount++;
@@ -597,6 +631,11 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	}
 
 	return chainCount;
+revert:
+	for i := 0; i < chainCount; i++ {
+		b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
+	}
+	return 0;
 }
 
 // Returns true if this move would fill in an eye.
