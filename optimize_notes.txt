@@ -223,3 +223,7 @@ Changing the board cells from a slice to an array helps:
 
 Changing chainPoints from a slice to an array doesn't help:
   6089, 6114, 6111 
+
+Making stride a constant doesn't help:
+  5653, 5739, 5889
+
