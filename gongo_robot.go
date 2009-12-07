@@ -50,7 +50,7 @@ func NewConfiguredRobot(config Config) GoRobot {
 	} else {
 		result.SetBoardSize(9)
 	}
-	if config.SampleCount < 0 {
+	if config.SampleCount > 0 {
 		result.sampleCount = config.SampleCount
 	} else {
 		result.sampleCount = 1000
