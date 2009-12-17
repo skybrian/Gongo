@@ -395,3 +395,15 @@ Reimplement randomness to avoid slow division for big win:
   0.00%	  0.68%	MHeap_LookupMaybe
   0.00%	  0.68%	etext
   0.00%	  0.68%	os·*File·Write
+
+Timed some other programs:
+
+plug-and-go:   14,705   - 500000 playouts in 34 seconds
+CRef bot (no opt) 5,882  - 100000 playouts in 17 seconds
+CRef bot (-O3)   12,500 
+
+Oops, forgot to use -server
+
+
+plug-and-go 17,857 - 500000 in 28 seconds
+Jrefbot 10,000     - 500000 in 50 seconds
