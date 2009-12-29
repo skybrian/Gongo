@@ -6,34 +6,34 @@ package gongo
 // http://groups.google.com/group/computer-go-archive/browse_thread/thread/bda08b9c37f0803e/8cc424b0fb1b6fe0
 
 import (
-	"bytes";
-	"fmt";
-	"log";
-	"math";
-	"os";
-	"rand";
-	"time";
+	"bytes"
+	"fmt"
+	"log"
+	"math"
+	"os"
+	"rand"
+	"time"
 )
 
 // === Public API ===
 
 type Randomness interface {
-	Intn(n int) int;
+	Intn(n int) int
 }
 
 type randomness struct {
-	src rand.Source;
+	src rand.Source
 }
 
-func (r *randomness) Intn(n int) int	{ return int(r.src.Int63()&0x7FFFFFFF) % n }
+func (r *randomness) Intn(n int) int { return int(r.src.Int63()&0x7FFFFFFF) % n }
 
 var defaultRandomness = randomness{src: rand.NewSource(time.Nanoseconds())}
 
 type Config struct {
-	BoardSize	int;
-	SampleCount	int;	// number of random samples to take to estimate each move
-	Randomness	Randomness;
-	Log		*log.Logger;
+	BoardSize   int
+	SampleCount int // number of random samples to take to estimate each move
+	Randomness  Randomness
+	Log         *log.Logger
 }
 
 func NewRobot(boardSize int) GoRobot {
@@ -41,9 +41,9 @@ func NewRobot(boardSize int) GoRobot {
 }
 
 func NewConfiguredRobot(config Config) GoRobot {
-	result := new(robot);
-	result.board = new(board);
-	result.scratchBoard = new(board);
+	result := new(robot)
+	result.board = new(board)
+	result.scratchBoard = new(board)
 
 	if config.BoardSize > 0 {
 		result.SetBoardSize(config.BoardSize)
@@ -65,12 +65,12 @@ func NewConfiguredRobot(config Config) GoRobot {
 	} else {
 		result.log = log.New(os.Stderr, nil, "[gongo]", log.Ltime)
 	}
-	return result;
+	return result
 }
 
 func BoardToString(b GoBoard) string {
-	var out bytes.Buffer;
-	size := b.GetBoardSize();
+	var out bytes.Buffer
+	size := b.GetBoardSize()
 	for y := size; y >= 1; y-- {
 		for x := 1; x <= size; x++ {
 			switch b.GetCell(x, y) {
@@ -86,7 +86,7 @@ func BoardToString(b GoBoard) string {
 			out.WriteString("\n")
 		}
 	}
-	return out.String();
+	return out.String()
 }
 
 
@@ -117,13 +117,13 @@ func BoardToString(b GoBoard) string {
 type cell int
 
 const (
-	EMPTY	cell	= 0;
-	WHITE	cell	= 1;
-	BLACK	cell	= 2;
-	EDGE	cell	= 4;
+	EMPTY cell = 0
+	WHITE cell = 1
+	BLACK cell = 2
+	EDGE  cell = 4
 
 	// A flag on a cell indicating that it's part of the current chain.
-	CELL_IN_CHAIN	= 64;
+	CELL_IN_CHAIN = 64
 )
 
 func colorToCell(c Color) cell {
@@ -133,7 +133,7 @@ func colorToCell(c Color) cell {
 	case Black:
 		return BLACK
 	}
-	panic("illegal color: %v", c);
+	panic("illegal color: %v", c)
 }
 
 func (c cell) toColor() Color {
@@ -147,7 +147,7 @@ func (c cell) toColor() Color {
 	}
 
 	// might happens if we pick up an edge or forget to clear CELL_IN_CHAIN
-	panic("can't convert cell to color: %s", c);
+	panic("can't convert cell to color: %s", c)
 }
 
 // A pt represents either a point on the Go board or a player's move. When
@@ -158,28 +158,28 @@ type pt int
 
 const (
 	// An invalid point. Interpreted as a move, this means the player passes.
-	PASS	pt	= 0;
+	PASS pt = 0
 
 	// A flag on a recorded move indicating that the move captured exactly one stone.
 	// (Used in r.moves to find simple Kos.)
-	ONE_CAPTURE	= 1024;
+	ONE_CAPTURE = 1024
 
 	// A mask to remove the ONE_CAPTURE flag from a move, resulting in a point.
-	MOVE_TO_PT_MASK	= 1023;
+	MOVE_TO_PT_MASK = 1023
 )
 
 type moveResult int
 
 const (
-	played	moveResult	= iota;
-	passed;
-	occupied;
-	suicide;
-	ko;
-	superko;
+	played moveResult = iota
+	passed
+	occupied
+	suicide
+	ko
+	superko
 )
 
-func (m moveResult) ok() bool	{ return m == played || m == passed }
+func (m moveResult) ok() bool { return m == played || m == passed }
 
 func (m moveResult) String() string {
 	switch m {
@@ -196,93 +196,93 @@ func (m moveResult) String() string {
 	case superko:
 		return "superko"
 	}
-	panic("invalid moveResult");
+	panic("invalid moveResult")
 }
 
 func (m moveResult) toPlayResult(captures int) (bool, string) {
 	if m == played {
 		return true, fmt.Sprintf("captures: %v", captures)
 	}
-	return m.ok(), m.String();
+	return m.ok(), m.String()
 }
 
 const (
-	maxBoardSize	= 25;
-	maxRowCount	= maxBoardSize + 2;	// barriers above and below
-	maxStride	= maxBoardSize + 1;	// single barrier for both left and right
+	maxBoardSize = 25
+	maxRowCount  = maxBoardSize + 2 // barriers above and below
+	maxStride    = maxBoardSize + 1 // single barrier for both left and right
 )
 
 type board struct {
-	size		int;
-	stride		int;	// boardSize + 1 to account for barrier column
-	dirOffset	[4]pt;	// amount to add to a pt to move in each cardinal direction
-	diagOffset	[4]pt;	// amount to add to a pt to move in each diagonal direction
+	size       int
+	stride     int   // boardSize + 1 to account for barrier column
+	dirOffset  [4]pt // amount to add to a pt to move in each cardinal direction
+	diagOffset [4]pt // amount to add to a pt to move in each diagonal direction
 
-	cells		[maxStride*maxRowCount + 1]cell;
-	allPoints	[]pt;	// List of all points on the board. (Skips barrier cells.)
-	neighborCounts	[]int;	// Holds counts of how many neighbors a cell has (4 - liberties)
+	cells          [maxStride*maxRowCount + 1]cell
+	allPoints      []pt  // List of all points on the board. (Skips barrier cells.)
+	neighborCounts []int // Holds counts of how many neighbors a cell has (4 - liberties)
 
 	// List of moves in this game
-	moves		[]pt;
-	moveCount	int;
-	commonMoveCount	int;	// used to avoid recopying moves between boards
+	moves           []pt
+	moveCount       int
+	commonMoveCount int // used to avoid recopying moves between boards
 
 	// Scratch variables, reused to avoid GC:
-	chainPoints	[]pt;	// return value of markSurroundedChain
-	candidates	[]pt;	// moves to choose from; used in playRandomGame.
+	chainPoints []pt // return value of markSurroundedChain
+	candidates  []pt // moves to choose from; used in playRandomGame.
 }
 
 func (b *board) clearBoard(newSize int) (ok bool) {
 	if newSize > maxBoardSize {
 		return false
 	}
-	b.size = newSize;
-	b.stride = newSize + 1;
-	b.dirOffset[0] = pt(1);			// right
-	b.dirOffset[1] = pt(-1);		// left
-	b.dirOffset[2] = pt(b.stride);		// up
-	b.dirOffset[3] = pt(-b.stride);		// down
-	b.diagOffset[0] = pt(b.stride - 1);	// nw
-	b.diagOffset[1] = pt(b.stride + 1);	// ne
-	b.diagOffset[2] = pt(-b.stride - 1);	// sw
-	b.diagOffset[3] = pt(-b.stride + 1);	// se
+	b.size = newSize
+	b.stride = newSize + 1
+	b.dirOffset[0] = pt(1)              // right
+	b.dirOffset[1] = pt(-1)             // left
+	b.dirOffset[2] = pt(b.stride)       // up
+	b.dirOffset[3] = pt(-b.stride)      // down
+	b.diagOffset[0] = pt(b.stride - 1)  // nw
+	b.diagOffset[1] = pt(b.stride + 1)  // ne
+	b.diagOffset[2] = pt(-b.stride - 1) // sw
+	b.diagOffset[3] = pt(-b.stride + 1) // se
 
-	b.allPoints = make([]pt, b.size*b.size);
-	b.neighborCounts = make([]int, len(b.cells));
+	b.allPoints = make([]pt, b.size*b.size)
+	b.neighborCounts = make([]int, len(b.cells))
 
 	// fill entire array with board edge
 	for i := 0; i < len(b.cells); i++ {
-		b.cells[i] = EDGE;
-		b.neighborCounts[i] = 4;
+		b.cells[i] = EDGE
+		b.neighborCounts[i] = 4
 	}
 
 	// add empty cells to the board and update allPoints list and neighborCounts
-	pointsAdded := 0;
+	pointsAdded := 0
 	for y := 1; y <= b.size; y++ {
 		for x := 1; x <= b.size; x++ {
-			pt := b.makePt(x, y);
-			b.cells[pt] = EMPTY;
-			b.allPoints[pointsAdded] = pt;
+			pt := b.makePt(x, y)
+			b.cells[pt] = EMPTY
+			b.allPoints[pointsAdded] = pt
 			for dir := 0; dir < 4; dir++ {
 				b.neighborCounts[pt+b.dirOffset[dir]]--
 			}
-			pointsAdded++;
+			pointsAdded++
 		}
 	}
 
 	// assumes no game lasts longer than it would take to fill the board at four times (plus some extra)
-	b.moves = make([]pt, len(b.cells)*4);
-	b.moveCount = 0;
-	b.commonMoveCount = 0;
+	b.moves = make([]pt, len(b.cells)*4)
+	b.moveCount = 0
+	b.commonMoveCount = 0
 
-	b.chainPoints = make([]pt, len(b.allPoints));
-	b.candidates = make([]pt, len(b.allPoints));
-	return true;
+	b.chainPoints = make([]pt, len(b.allPoints))
+	b.candidates = make([]pt, len(b.allPoints))
+	return true
 }
 
-func (b board) GetBoardSize() int	{ return b.size }
+func (b board) GetBoardSize() int { return b.size }
 
-func (b board) GetCell(x, y int) Color	{ return b.cells[b.makePt(x, y)].toColor() }
+func (b board) GetCell(x, y int) Color { return b.cells[b.makePt(x, y)].toColor() }
 
 // Simple version of Play() for working with a board directly in tests.
 // Doesn't check superko or update r.boardHashes
@@ -298,8 +298,8 @@ func (b *board) Play(color Color, x, y int) (ok bool, message string) {
 		}
 	}
 
-	result, captures := b.makeMove(b.makePt(x, y));
-	return result.toPlayResult(captures);
+	result, captures := b.makeMove(b.makePt(x, y))
+	return result.toPlayResult(captures)
 }
 
 func (b *board) checkPlayArgs(color Color, x, y int) bool {
@@ -309,21 +309,21 @@ func (b *board) checkPlayArgs(color Color, x, y int) bool {
 	if x == 0 && y == 0 {
 		return true
 	}
-	return x > 0 && y > 0 && x <= b.size && y <= b.size;
+	return x > 0 && y > 0 && x <= b.size && y <= b.size
 }
 
-func (b *board) isMyTurn(c Color) bool	{ return b.getFriendlyStone() == colorToCell(c) }
+func (b *board) isMyTurn(c Color) bool { return b.getFriendlyStone() == colorToCell(c) }
 
-func (b *board) makePt(x, y int) pt	{ return pt(y*b.stride + x) }
+func (b *board) makePt(x, y int) pt { return pt(y*b.stride + x) }
 
 func (b *board) getCoords(p pt) (x, y int) {
-	y = int(p) / b.stride;
-	x = int(p) % b.stride;
-	return;
+	y = int(p) / b.stride
+	x = int(p) % b.stride
+	return
 }
 
 // Returns a cell with the correct color stone for the current player's next move
-func (b *board) getFriendlyStone() cell	{ return cell(2 - (b.moveCount & 1)) }
+func (b *board) getFriendlyStone() cell { return cell(2 - (b.moveCount & 1)) }
 
 // Returns a hash of the current board position, useful for determining whether
 // we repeated a board position.
@@ -339,11 +339,11 @@ func (b *board) getFriendlyStone() cell	{ return cell(2 - (b.moveCount & 1)) }
    used here.
    ------------------------------------------------------------ */
 func (b *board) getHash() int64 {
-	var k int64 = 5381;
+	var k int64 = 5381
 	for _, pt := range b.allPoints {
 		k = ((k << 5) + k) + int64(b.cells[pt])
 	}
-	return k;
+	return k
 }
 
 // Copies the board and move list from another board of the same size.
@@ -354,30 +354,30 @@ func (b *board) copyFrom(other *board) {
 		panic("boards must be same size")
 	}
 	for _, pt := range b.allPoints {
-		b.cells[pt] = other.cells[pt];
-		b.neighborCounts[pt] = other.neighborCounts[pt];
+		b.cells[pt] = other.cells[pt]
+		b.neighborCounts[pt] = other.neighborCounts[pt]
 	}
 
 	// top off move list; assumes other board may have appended some moves
 	for i := b.commonMoveCount; i < other.moveCount; i++ {
 		b.moves[i] = other.moves[i]
 	}
-	b.moveCount = other.moveCount;
-	b.commonMoveCount = other.moveCount;
+	b.moveCount = other.moveCount
+	b.commonMoveCount = other.moveCount
 }
 
 // Fill the board with a randomly-generated game
 func (b *board) playRandomGame(rand Randomness) {
-	maxMoves := len(b.allPoints) * 3;
+	maxMoves := len(b.allPoints) * 3
 
 captured:
 	for {
 		// fill candidates list with unoccupied points
-		candCount := 0;
+		candCount := 0
 		for _, pt := range b.allPoints {
 			if b.cells[pt] == EMPTY {
-				b.candidates[candCount] = pt;
-				candCount++;
+				b.candidates[candCount] = pt
+				candCount++
 			}
 		}
 
@@ -390,8 +390,8 @@ captured:
 		// - moveCount increases by 1
 		// - Either playedCount or passedCount increases by 1.
 
-		playedCount := 0;
-		passedCount := 0;
+		playedCount := 0
+		passedCount := 0
 	played:
 		for b.moveCount < maxMoves {
 
@@ -399,36 +399,36 @@ captured:
 			for i := playedCount; i < candCount; i++ {
 
 				// choose random move from remaining candidates
-				randomIndex := i + rand.Intn(candCount-i);
-				randomPt := b.candidates[randomIndex];
+				randomIndex := i + rand.Intn(candCount-i)
+				randomPt := b.candidates[randomIndex]
 				// swap next candidate with randomly chosen candidate
-				b.candidates[randomIndex], b.candidates[i] = b.candidates[i], randomPt;
+				b.candidates[randomIndex], b.candidates[i] = b.candidates[i], randomPt
 
 				// make the move if we can
 				if !b.wouldFillEye(randomPt) {
-					result, captures := b.makeMove(randomPt);
+					result, captures := b.makeMove(randomPt)
 					if result == played {
 						if captures > 0 {
 							// capturing invalidates the candidate list, so restart
 							continue captured
 						} else {
-							playedCount++;
-							passedCount = 0;
-							continue played;
+							playedCount++
+							passedCount = 0
+							continue played
 						}
 					}
 				}
 			}
 			// pass because none of the candidates are suitable
-			b.makeMove(PASS);
-			passedCount++;
+			b.makeMove(PASS)
+			passedCount++
 			if passedCount == 2 {
-				return	// game over
+				return // game over
 			}
 		}
 		// Prevent infinite loop by forcing the game to stop.
 		// (Possible because we're not checking for superko.)
-		return;
+		return
 	}
 }
 
@@ -438,7 +438,7 @@ captured:
 func (b *board) getEasyScore() int {
 	// 0=unused, 1=white, 2=black
 	// 3=surrounded by both (no score; missed point under area scoring)
-	var cellCounts [4]int;
+	var cellCounts [4]int
 
 	for _, pt := range b.allPoints {
 		switch cell := b.cells[pt]; cell {
@@ -448,15 +448,15 @@ func (b *board) getEasyScore() int {
 			// Find which neighbors are present by OR-ing the cells together.
 			// (This works because WHITE and BLACK are single bits and 3 is
 			// not used on the board.)
-			neighborBits := 0;
+			neighborBits := 0
 			for direction := 0; direction < 4; direction++ {
-				neighborCell := b.cells[pt+b.dirOffset[direction]];
-				neighborBits = neighborBits | int(neighborCell);
+				neighborCell := b.cells[pt+b.dirOffset[direction]]
+				neighborBits = neighborBits | int(neighborCell)
 			}
-			cellCounts[neighborBits&3]++;
+			cellCounts[neighborBits&3]++
 		}
 	}
-	return cellCounts[BLACK] - cellCounts[WHITE];
+	return cellCounts[BLACK] - cellCounts[WHITE]
 }
 
 // A fast version of makeMove() that's good enough for playouts.
@@ -464,13 +464,13 @@ func (b *board) getEasyScore() int {
 // with the number of captures. Otherwise, do nothing and return false.
 // Doesn't check superko or update boardHashes.
 func (b *board) makeMove(move pt) (result moveResult, captures int) {
-	friendlyStone := cell(2 - (b.moveCount & 1));
-	enemyStone := friendlyStone ^ 3;
+	friendlyStone := cell(2 - (b.moveCount & 1))
+	enemyStone := friendlyStone ^ 3
 
 	if move == PASS {
-		b.moves[b.moveCount] = PASS;
-		b.moveCount++;
-		return passed, 0;
+		b.moves[b.moveCount] = PASS
+		b.moveCount++
+		return passed, 0
 	}
 
 	if b.cells[move] != EMPTY {
@@ -478,16 +478,16 @@ func (b *board) makeMove(move pt) (result moveResult, captures int) {
 	}
 
 	// place stone and increment neighbor counts
-	b.cells[move] = friendlyStone;
-	b.neighborCounts[move-1]++;
-	b.neighborCounts[move+1]++;
-	b.neighborCounts[move-pt(b.stride)]++;
-	b.neighborCounts[move+pt(b.stride)]++;
+	b.cells[move] = friendlyStone
+	b.neighborCounts[move-1]++
+	b.neighborCounts[move+1]++
+	b.neighborCounts[move-pt(b.stride)]++
+	b.neighborCounts[move+pt(b.stride)]++
 
 	// find any captures and remove them from the board
-	captures = 0;
+	captures = 0
 	for dir := 0; dir < 4; dir++ {
-		neighborPt := move + b.dirOffset[dir];
+		neighborPt := move + b.dirOffset[dir]
 		if b.cells[neighborPt] == enemyStone && b.neighborCounts[neighborPt] == 4 {
 			captures += b.capture(neighborPt)
 		}
@@ -496,40 +496,40 @@ func (b *board) makeMove(move pt) (result moveResult, captures int) {
 	if captures == 0 {
 		// check for suicide
 		if b.neighborCounts[move] == 4 && !b.hasLiberties(move) {
-			result = suicide;
-			goto revert;
+			result = suicide
+			goto revert
 		}
 	} else if captures == 1 {
 		// check for simple Ko.
-		lastMove := b.moves[b.moveCount-1];
-		if (lastMove&ONE_CAPTURE) != 0 &&	// previous move captured one stone
-			b.cells[lastMove&MOVE_TO_PT_MASK] == EMPTY {	// this move captured previous move
+		lastMove := b.moves[b.moveCount-1]
+		if (lastMove&ONE_CAPTURE) != 0 && // previous move captured one stone
+			b.cells[lastMove&MOVE_TO_PT_MASK] == EMPTY { // this move captured previous move
 			// found a Ko; revert the capture
-			revertPt := lastMove & MOVE_TO_PT_MASK;
-			b.cells[revertPt] = enemyStone;
+			revertPt := lastMove & MOVE_TO_PT_MASK
+			b.cells[revertPt] = enemyStone
 			for dir := 0; dir < 4; dir++ {
-				neighborPt := revertPt&MOVE_TO_PT_MASK + b.dirOffset[dir];
-				b.neighborCounts[neighborPt]++;
+				neighborPt := revertPt&MOVE_TO_PT_MASK + b.dirOffset[dir]
+				b.neighborCounts[neighborPt]++
 			}
-			result = ko;
-			captures = 0;
-			goto revert;
+			result = ko
+			captures = 0
+			goto revert
 		}
-		move = ONE_CAPTURE | move;
+		move = ONE_CAPTURE | move
 	}
 
-	b.moves[b.moveCount] = move;
-	b.moveCount++;
-	return played, captures;
+	b.moves[b.moveCount] = move
+	b.moveCount++
+	return played, captures
 
 revert:
 	// remove previously placed stone and decrement neighbor counts
-	b.cells[move] = EMPTY;
+	b.cells[move] = EMPTY
 	for dir := 0; dir < 4; dir++ {
-		neighborPt := move&MOVE_TO_PT_MASK + b.dirOffset[dir];
-		b.neighborCounts[neighborPt]--;
+		neighborPt := move&MOVE_TO_PT_MASK + b.dirOffset[dir]
+		b.neighborCounts[neighborPt]--
 	}
-	return;
+	return
 }
 
 // Given any point in a chain with no liberties, removes all stones in the
@@ -537,25 +537,25 @@ revert:
 // point in a chain that has liberties, does nothing and returns 0.
 // Preconditions: same as b.markSurroundedChain
 func (b *board) capture(target pt) (chainCount int) {
-	chainCount = b.markSurroundedChain(target);
+	chainCount = b.markSurroundedChain(target)
 
 	// Remove the stones from the board and decrement neighbor counts
 	for i := 0; i < chainCount; i++ {
-		removePt := b.chainPoints[i];
-		b.cells[removePt] = EMPTY;
+		removePt := b.chainPoints[i]
+		b.cells[removePt] = EMPTY
 		for dir := 0; dir < 4; dir++ {
-			neighborPt := removePt + b.dirOffset[dir];
-			b.neighborCounts[neighborPt]--;
+			neighborPt := removePt + b.dirOffset[dir]
+			b.neighborCounts[neighborPt]--
 		}
 	}
-	return chainCount;
+	return chainCount
 }
 
 // Given any occupied point, returns true if it has any liberties.
 // (Used for testing suicide.)
 // Preconditions: same as b.markSurroundedChain
 func (b *board) hasLiberties(target pt) bool {
-	chainCount := b.markSurroundedChain(target);
+	chainCount := b.markSurroundedChain(target)
 	if chainCount == 0 {
 		return true
 	}
@@ -564,7 +564,7 @@ func (b *board) hasLiberties(target pt) bool {
 	for i := 0; i < chainCount; i++ {
 		b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
 	}
-	return false;
+	return false
 }
 
 // Given any point in a chain with no liberties, marks all the cells in
@@ -574,12 +574,12 @@ func (b *board) hasLiberties(target pt) bool {
 // Preconditions: the target point is occupied and has no liberties, and all
 // cells have the CELL_IN_CHAIN flag cleared.
 func (b *board) markSurroundedChain(target pt) (chainCount int) {
-	chainCount = 0;
-	chainColor := b.cells[target];
+	chainCount = 0
+	chainColor := b.cells[target]
 
-	b.chainPoints[chainCount] = target;
-	chainCount++;
-	b.cells[target] |= CELL_IN_CHAIN;
+	b.chainPoints[chainCount] = target
+	chainCount++
+	b.cells[target] |= CELL_IN_CHAIN
 
 	// Visit each point, verify that has no liberties, and add its neighbors to the
 	// end of chainPoints.
@@ -589,59 +589,59 @@ func (b *board) markSurroundedChain(target pt) (chainCount int) {
 	// - Points between visitedCount and chainCount are known to be in the chain
 	// and to have no liberties, but still need to be visited.
 	for visitedCount := 0; visitedCount < chainCount; visitedCount++ {
-		thisPt := b.chainPoints[visitedCount];
+		thisPt := b.chainPoints[visitedCount]
 
-		rightPt := thisPt + pt(1);
-		leftPt := thisPt + pt(-1);
-		upPt := thisPt + pt(b.stride);
-		downPt := thisPt + pt(-b.stride);
+		rightPt := thisPt + pt(1)
+		leftPt := thisPt + pt(-1)
+		upPt := thisPt + pt(b.stride)
+		downPt := thisPt + pt(-b.stride)
 
-		rightCell := b.cells[rightPt];
-		leftCell := b.cells[leftPt];
-		upCell := b.cells[upPt];
-		downCell := b.cells[downPt];
+		rightCell := b.cells[rightPt]
+		leftCell := b.cells[leftPt]
+		upCell := b.cells[upPt]
+		downCell := b.cells[downPt]
 
 		// add surrounding points to the chain if they're the same color
 		if rightCell == chainColor {
 			if b.neighborCounts[rightPt] != 4 {
 				goto revert
 			}
-			b.chainPoints[chainCount] = rightPt;
-			b.cells[rightPt] |= CELL_IN_CHAIN;
-			chainCount++;
+			b.chainPoints[chainCount] = rightPt
+			b.cells[rightPt] |= CELL_IN_CHAIN
+			chainCount++
 		}
 		if leftCell == chainColor {
 			if b.neighborCounts[leftPt] != 4 {
 				goto revert
 			}
-			b.chainPoints[chainCount] = leftPt;
-			b.cells[leftPt] |= CELL_IN_CHAIN;
-			chainCount++;
+			b.chainPoints[chainCount] = leftPt
+			b.cells[leftPt] |= CELL_IN_CHAIN
+			chainCount++
 		}
 		if upCell == chainColor {
 			if b.neighborCounts[upPt] != 4 {
 				goto revert
 			}
-			b.chainPoints[chainCount] = upPt;
-			b.cells[upPt] |= CELL_IN_CHAIN;
-			chainCount++;
+			b.chainPoints[chainCount] = upPt
+			b.cells[upPt] |= CELL_IN_CHAIN
+			chainCount++
 		}
 		if downCell == chainColor {
 			if b.neighborCounts[downPt] != 4 {
 				goto revert
 			}
-			b.chainPoints[chainCount] = downPt;
-			b.cells[downPt] |= CELL_IN_CHAIN;
-			chainCount++;
+			b.chainPoints[chainCount] = downPt
+			b.cells[downPt] |= CELL_IN_CHAIN
+			chainCount++
 		}
 	}
 
-	return chainCount;
+	return chainCount
 revert:
 	for i := 0; i < chainCount; i++ {
 		b.cells[b.chainPoints[i]] ^= CELL_IN_CHAIN
 	}
-	return 0;
+	return 0
 }
 
 // Returns true if this move would fill in an eye.
@@ -656,23 +656,23 @@ func (b *board) wouldFillEye(move pt) bool {
 	if move == PASS {
 		return false
 	}
-	friendlyStone := cell(2 - (b.moveCount & 1));
-	enemyStone := friendlyStone ^ 3;
+	friendlyStone := cell(2 - (b.moveCount & 1))
+	enemyStone := friendlyStone ^ 3
 
 	// not an eye unless cardinal directions have friendly stones or edge.
 	for direction := 0; direction < 4; direction++ {
-		neighborPt := move + b.dirOffset[direction];
-		neighborCell := b.cells[neighborPt];
+		neighborPt := move + b.dirOffset[direction]
+		neighborCell := b.cells[neighborPt]
 		if neighborCell != EDGE && neighborCell != friendlyStone {
 			return false
 		}
 	}
 
 	// count diagonal enemies and edges
-	haveEdge := 0;
-	enemies := 0;
+	haveEdge := 0
+	enemies := 0
 	for direction := 0; direction < 4; direction++ {
-		neighborPt := move + b.diagOffset[direction];
+		neighborPt := move + b.diagOffset[direction]
 		switch b.cells[neighborPt] {
 		case enemyStone:
 			enemies++
@@ -680,46 +680,46 @@ func (b *board) wouldFillEye(move pt) bool {
 			haveEdge = 1
 		}
 	}
-	return enemies+haveEdge < 2;
+	return enemies+haveEdge < 2
 }
 
-func (r *robot) String()	{}
+func (r *robot) String() {}
 
 
 // === Implementation of GoRobot interface ===
 
 type robot struct {
-	board		*board;
-	randomness	Randomness;
-	log		*log.Logger;
-	komi		float;
-	sampleCount	int;
+	board       *board
+	randomness  Randomness
+	log         *log.Logger
+	komi        float
+	sampleCount int
 
 	// Contains a hash of each previous board in the current game,
 	// for determining whether a move would violate positional superko
-	boardHashes	[]int64;
+	boardHashes []int64
 
 	// Scratch variables, reused to avoid GC
-	scratchBoard	*board;
-	candidates	[]pt;	// moves to choose from; used in GenMove.
-	wins, hits	[]int;	// results of findWins()
+	scratchBoard *board
+	candidates   []pt  // moves to choose from; used in GenMove.
+	wins, hits   []int // results of findWins()
 }
 
 func (r *robot) SetBoardSize(newSize int) bool {
 	if !r.board.clearBoard(newSize) {
 		return false
 	}
-	r.scratchBoard.clearBoard(newSize);
-	r.boardHashes = make([]int64, len(r.board.moves));
-	r.candidates = make([]pt, len(r.board.allPoints));
-	r.wins = make([]int, len(r.board.cells));
-	r.hits = make([]int, len(r.board.cells));
-	return true;
+	r.scratchBoard.clearBoard(newSize)
+	r.boardHashes = make([]int64, len(r.board.moves))
+	r.candidates = make([]pt, len(r.board.allPoints))
+	r.wins = make([]int, len(r.board.cells))
+	r.hits = make([]int, len(r.board.cells))
+	return true
 }
 
-func (r *robot) ClearBoard()	{ r.SetBoardSize(r.board.size) }
+func (r *robot) ClearBoard() { r.SetBoardSize(r.board.size) }
 
-func (r *robot) SetKomi(value float)	{ r.komi = value }
+func (r *robot) SetKomi(value float) { r.komi = value }
 
 func (r *robot) Play(color Color, x, y int) (ok bool, message string) {
 	if !r.board.checkPlayArgs(color, x, y) {
@@ -735,8 +735,8 @@ func (r *robot) Play(color Color, x, y int) (ok bool, message string) {
 	}
 
 	// use full version of makeMove so we update r.boardHashes
-	result, captures := r.makeMove(r.board.makePt(x, y));
-	return result.toPlayResult(captures);
+	result, captures := r.makeMove(r.board.makePt(x, y))
+	return result.toPlayResult(captures)
 }
 
 func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
@@ -748,54 +748,54 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 		}
 	}
 
-	startTime := time.Nanoseconds();
-	r.findWins(r.sampleCount);
-	stopTime := time.Nanoseconds();
-	elapsedTimeSecs := float64(stopTime-startTime) / math.Pow10(9);
-	r.log.Logf("playouts/second: %.0f", float64(r.sampleCount)/elapsedTimeSecs);
+	startTime := time.Nanoseconds()
+	r.findWins(r.sampleCount)
+	stopTime := time.Nanoseconds()
+	elapsedTimeSecs := float64(stopTime-startTime) / math.Pow10(9)
+	r.log.Logf("playouts/second: %.0f", float64(r.sampleCount)/elapsedTimeSecs)
 
 	// create a list of possible moves
-	candidates := r.candidates;	// reuse array to avoid allocation
-	candidateCount := 0;
+	candidates := r.candidates // reuse array to avoid allocation
+	candidateCount := 0
 	for _, pt := range r.board.allPoints {
 		if r.hits[pt] > 0 && !r.board.wouldFillEye(pt) && r.checkLegalMove(pt) == played {
-			candidates[candidateCount] = pt;
-			candidateCount++;
+			candidates[candidateCount] = pt
+			candidateCount++
 		}
 	}
 
 	// choose best move by iterating through candidates
 	// (randomly permuted to break ties randomly)
-	bestMove := PASS;
-	bestScore := float(-99.0);
+	bestMove := PASS
+	bestScore := float(-99.0)
 	for i := 0; i < candidateCount; i++ {
 
 		// permute
-		randomIndex := i + rand.Intn(candidateCount-i);
-		pt := r.candidates[randomIndex];
-		r.candidates[randomIndex], r.candidates[i] = r.candidates[i], pt;
+		randomIndex := i + rand.Intn(candidateCount-i)
+		pt := r.candidates[randomIndex]
+		r.candidates[randomIndex], r.candidates[i] = r.candidates[i], pt
 
-		score := float(r.wins[pt]) / float(r.hits[pt]);
+		score := float(r.wins[pt]) / float(r.hits[pt])
 		if score > bestScore {
-			bestMove = pt;
-			bestScore = score;
+			bestMove = pt
+			bestScore = score
 		}
 	}
 
-	result, _ := r.makeMove(bestMove);
+	result, _ := r.makeMove(bestMove)
 
 	if result == played {
-		x, y := r.board.getCoords(bestMove);
-		return x, y, Played;
+		x, y := r.board.getCoords(bestMove)
+		return x, y, Played
 	} else if result == passed {
 		return 0, 0, Passed
 	}
-	panic("can't make generated move? ", result);
+	panic("can't make generated move? ", result)
 }
 
-func (r *robot) GetBoardSize() int	{ return r.board.GetBoardSize() }
+func (r *robot) GetBoardSize() int { return r.board.GetBoardSize() }
 
-func (r *robot) GetCell(x, y int) Color	{ return r.board.GetCell(x, y) }
+func (r *robot) GetCell(x, y int) Color { return r.board.GetCell(x, y) }
 
 // The strict version of makeMove for actually making a move.
 // (Checks for superko and updates boardHashes.)
@@ -803,23 +803,23 @@ func (r *robot) makeMove(move pt) (result moveResult, captures int) {
 	if result := r.checkLegalMove(move); !result.ok() {
 		return result, 0
 	}
-	result, captures = r.board.makeMove(move);
+	result, captures = r.board.makeMove(move)
 	if !result.ok() {
 		panic("isLegalMove ok but makeMove returned: ", result)
 	}
-	r.boardHashes[r.board.moveCount-1] = r.board.getHash();
-	return result, captures;
+	r.boardHashes[r.board.moveCount-1] = r.board.getHash()
+	return result, captures
 }
 
 func (r *robot) checkLegalMove(move pt) (result moveResult) {
 	// try this move on the scratch board
-	sb := r.scratchBoard;
-	sb.copyFrom(r.board);
-	result, _ = sb.makeMove(move);
+	sb := r.scratchBoard
+	sb.copyFrom(r.board)
+	result, _ = sb.makeMove(move)
 
 	if result == played {
 		// check for superko
-		newHash := sb.getHash();
+		newHash := sb.getHash()
 		for i := 0; i < r.board.moveCount; i++ {
 			if newHash == r.boardHashes[i] {
 				// found superko
@@ -828,7 +828,7 @@ func (r *robot) checkLegalMove(move pt) (result moveResult) {
 		}
 	}
 
-	return result;
+	return result
 }
 
 // Use Monte-Carlo simulation to find a win rate for each point on the board.
@@ -837,24 +837,24 @@ func (r *robot) checkLegalMove(move pt) (result moveResult) {
 func (r *robot) findWins(numSamples int) {
 	// clear statistics
 	for i := range r.wins {
-		r.wins[i] = 0;
-		r.hits[i] = 0;
+		r.wins[i] = 0
+		r.hits[i] = 0
 	}
 
-	sb := r.scratchBoard;
+	sb := r.scratchBoard
 	for i := 0; i < numSamples; i++ {
-		sb.copyFrom(r.board);
-		sb.playRandomGame(r.randomness);
-		score := sb.getEasyScore();
+		sb.copyFrom(r.board)
+		sb.playRandomGame(r.randomness)
+		score := sb.getEasyScore()
 
 		// choose amount to add to points used in this game
-		var winAmount int;
+		var winAmount int
 		if float(score) > r.komi {
 			winAmount = 1
 		} else if float(score) < r.komi {
 			winAmount = -1
 		} else {
-			winAmount = 0	// a draw
+			winAmount = 0 // a draw
 		}
 		if r.board.getFriendlyStone() == WHITE {
 			winAmount = -winAmount
@@ -864,7 +864,7 @@ func (r *robot) findWins(numSamples int) {
 		// player, add winAmount. (All Moves As First heuristic)
 	scoring:
 		for i := r.board.moveCount; i < sb.moveCount; i += 2 {
-			pt := sb.moves[i] & MOVE_TO_PT_MASK;
+			pt := sb.moves[i] & MOVE_TO_PT_MASK
 
 			// check that it hasn't been played yet
 			for j := r.board.moveCount; j < i; j++ {
@@ -873,8 +873,8 @@ func (r *robot) findWins(numSamples int) {
 				}
 			}
 
-			r.wins[pt] += winAmount;
-			r.hits[pt]++;
+			r.wins[pt] += winAmount
+			r.hits[pt]++
 		}
 	}
 }

@@ -1,32 +1,32 @@
 package main
 
 import (
-	"fmt";
-	"gongo";
-	"os";
-	"strconv";
+	"fmt"
+	"gongo"
+	"os"
+	"strconv"
 )
 
 func UsageError() {
-	fmt.Fprintf(os.Stderr, "Usage: %v [sampleCount]\n\n", os.Args[0]);
-	os.Exit(1);
+	fmt.Fprintf(os.Stderr, "Usage: %v [sampleCount]\n\n", os.Args[0])
+	os.Exit(1)
 }
 
 func main() {
-	var conf gongo.Config;
+	var conf gongo.Config
 	if len(os.Args) == 1 {
 		conf.SampleCount = 1000
 	} else if len(os.Args) == 2 {
-		val, err := strconv.Atoi(os.Args[1]);
+		val, err := strconv.Atoi(os.Args[1])
 		if err != nil {
 			UsageError()
 		}
-		conf.SampleCount = val;
+		conf.SampleCount = val
 	} else {
 		UsageError()
 	}
-	bot := gongo.NewConfiguredRobot(conf);
-	err := gongo.Run(bot, os.Stdin, os.Stdout);
+	bot := gongo.NewConfiguredRobot(conf)
+	err := gongo.Run(bot, os.Stdin, os.Stdout)
 	if err == os.EOF {
 		fmt.Fprintln(os.Stderr, "got EOF")
 	} else if err != nil {
