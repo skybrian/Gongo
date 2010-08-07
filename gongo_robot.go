@@ -133,7 +133,7 @@ func colorToCell(c Color) cell {
 	case Black:
 		return BLACK
 	}
-	panic("illegal color: %v", c)
+	panic(fmt.Sprintf("illegal color: %v", c))
 }
 
 func (c cell) toColor() Color {
@@ -147,7 +147,7 @@ func (c cell) toColor() Color {
 	}
 
 	// might happens if we pick up an edge or forget to clear CELL_IN_CHAIN
-	panic("can't convert cell to color: %s", c)
+	panic(fmt.Sprintf("can't convert cell to color: %s", c))
 }
 
 // A pt represents either a point on the Go board or a player's move. When
@@ -744,7 +744,7 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 		// GTP protocol allows generating a move by either side;
 		// treat as if the other player passed.
 		if ok, message := r.Play(color.GetOpponent(), 0, 0); !ok {
-			panic("other side cannot pass? ", message)
+			panic(fmt.Sprintf("other side cannot pass? %s", message))
 		}
 	}
 
@@ -790,7 +790,7 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 	} else if result == passed {
 		return 0, 0, Passed
 	}
-	panic("can't make generated move? ", result)
+	panic(fmt.Sprintf("can't make generated move? %s", result))
 }
 
 func (r *robot) GetBoardSize() int { return r.board.GetBoardSize() }
@@ -805,7 +805,7 @@ func (r *robot) makeMove(move pt) (result moveResult, captures int) {
 	}
 	result, captures = r.board.makeMove(move)
 	if !result.ok() {
-		panic("isLegalMove ok but makeMove returned: ", result)
+		panic(fmt.Sprintf("isLegalMove ok but makeMove returned: ", result))
 	}
 	r.boardHashes[r.board.moveCount-1] = r.board.getHash()
 	return result, captures

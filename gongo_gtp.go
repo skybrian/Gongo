@@ -120,7 +120,7 @@ func (c Color) GetOpponent() Color {
 	case White:
 		return Black
 	}
-	panic("can't get opponent for %v", c)
+	panic(fmt.Sprintf("can't get opponent for %v", c))
 }
 
 func (c Color) String() string {
