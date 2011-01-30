@@ -63,7 +63,7 @@ func NewConfiguredRobot(config Config) GoRobot {
 	if config.Log != nil {
 		result.log = config.Log
 	} else {
-		result.log = log.New(os.Stderr, nil, "[gongo]", log.Ltime)
+		result.log = log.New(os.Stderr, "[gongo]", log.Ltime)
 	}
 	return result
 }
@@ -692,7 +692,7 @@ type robot struct {
 	board       *board
 	randomness  Randomness
 	log         *log.Logger
-	komi        float
+	komi        float64
 	sampleCount int
 
 	// Contains a hash of each previous board in the current game,
@@ -719,7 +719,7 @@ func (r *robot) SetBoardSize(newSize int) bool {
 
 func (r *robot) ClearBoard() { r.SetBoardSize(r.board.size) }
 
-func (r *robot) SetKomi(value float) { r.komi = value }
+func (r *robot) SetKomi(value float64) { r.komi = value }
 
 func (r *robot) Play(color Color, x, y int) (ok bool, message string) {
 	if !r.board.checkPlayArgs(color, x, y) {
@@ -752,7 +752,7 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 	r.findWins(r.sampleCount)
 	stopTime := time.Nanoseconds()
 	elapsedTimeSecs := float64(stopTime-startTime) / math.Pow10(9)
-	r.log.Logf("playouts/second: %.0f", float64(r.sampleCount)/elapsedTimeSecs)
+	r.log.Printf("playouts/second: %.0f", float64(r.sampleCount)/elapsedTimeSecs)
 
 	// create a list of possible moves
 	candidates := r.candidates // reuse array to avoid allocation
@@ -767,7 +767,7 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 	// choose best move by iterating through candidates
 	// (randomly permuted to break ties randomly)
 	bestMove := PASS
-	bestScore := float(-99.0)
+	bestScore := float64(-99.0)
 	for i := 0; i < candidateCount; i++ {
 
 		// permute
@@ -775,7 +775,7 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 		pt := r.candidates[randomIndex]
 		r.candidates[randomIndex], r.candidates[i] = r.candidates[i], pt
 
-		score := float(r.wins[pt]) / float(r.hits[pt])
+		score := float64(r.wins[pt]) / float64(r.hits[pt])
 		if score > bestScore {
 			bestMove = pt
 			bestScore = score
@@ -849,9 +849,9 @@ func (r *robot) findWins(numSamples int) {
 
 		// choose amount to add to points used in this game
 		var winAmount int
-		if float(score) > r.komi {
+		if float64(score) > r.komi {
 			winAmount = 1
-		} else if float(score) < r.komi {
+		} else if float64(score) < r.komi {
 			winAmount = -1
 		} else {
 			winAmount = 0 // a draw

@@ -83,7 +83,7 @@ type GoRobot interface {
 	SetBoardSize(size int) (ok bool)
 
 	ClearBoard()
-	SetKomi(komi float)
+	SetKomi(komi float64)
 
 	// Asks the robot to generate a move at the current position for the given
 	// color. The robot may be asked to play a move for either side.
@@ -157,7 +157,7 @@ func (m MoveResult) String() string {
 
 // === driver implementation ===
 
-var word_regexp = regexp.MustCompile("[^  ]+")
+var word_regexp = regexp.MustCompile("[^ ]+")
 
 func parseCommand(in *bufio.Reader) (cmd string, args []string, err os.Error) {
 	for {
@@ -167,8 +167,8 @@ func parseCommand(in *bufio.Reader) (cmd string, args []string, err os.Error) {
 		}
 		line = strings.TrimSpace(line)
 		if line != "" && line[0] != '#' {
-			words := word_regexp.AllMatchesString(line, 0)
-			return words[0], words[1:len(words)], nil
+			words := word_regexp.FindAllString(line, -1)
+			return words[0], words[1:], nil
 		}
 	}
 	return "", nil, os.NewError("shouldn't get here")
@@ -269,7 +269,7 @@ func handle_komi(req request) response {
 		return error("wrong number of arguments")
 	}
 
-	komi, err := strconv.Atof(req.args[0])
+	komi, err := strconv.Atof64(req.args[0])
 	if err != nil {
 		return error("syntax error")
 	}

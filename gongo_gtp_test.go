@@ -148,7 +148,7 @@ func TestParseVertex(t *testing.T) {
 type fake_robot struct {
 	board_size      int
 	board_cleared   bool
-	komi            float
+	komi            float64
 	color           Color
 	x, y            int
 	send_x          int
@@ -168,7 +168,7 @@ func (r *fake_robot) SetBoardSize(value int) bool {
 
 func (r *fake_robot) ClearBoard() { r.board_cleared = true }
 
-func (r *fake_robot) SetKomi(value float) { r.komi = value }
+func (r *fake_robot) SetKomi(value float64) { r.komi = value }
 
 func (r *fake_robot) Play(color Color, x, y int) (ok bool, message string) {
 	r.color = color
