@@ -57,7 +57,6 @@ func Run(robot GoRobot, input io.Reader, out io.Writer) os.Error {
 // GTP protocol doesn't support larger than 25x25
 const MaxBoardSize = 25
 
-
 type GoBoard interface {
 	// debug support (for showboard)
 	GetBoardSize() int
@@ -209,16 +208,16 @@ var (
 			req.robot.ClearBoard()
 			return success("")
 		},
-		"genmove": handle_genmove,
-		"known_command": _known,
-		"komi": handle_komi,
-		"list_commands": _list,
-		"name": func(req request) response { return success("gongo") },
-		"play": handle_play,
+		"genmove":          handle_genmove,
+		"known_command":    _known,
+		"komi":             handle_komi,
+		"list_commands":    _list,
+		"name":             func(req request) response { return success("gongo") },
+		"play":             handle_play,
 		"protocol_version": func(req request) response { return success("2") },
-		"quit": func(req request) response { return success("") },
-		"showboard": handle_showboard,
-		"version": func(req request) response { return success("") },
+		"quit":             func(req request) response { return success("") },
+		"showboard":        handle_showboard,
+		"version":          func(req request) response { return success("") },
 	}
 )
 
@@ -243,7 +242,7 @@ func handle_list_commands(req request) response {
 		i++
 	}
 
-	sort.SortStrings(names)
+	sort.Strings(names)
 	return success(strings.Join(names, "\n"))
 }
 

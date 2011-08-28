@@ -250,7 +250,7 @@ OO`)
 }
 
 // TODO: enable and fix "split stack overflow" error
-func xxxTestEasyScore(t *testing.T) {
+func TestEasyScore(t *testing.T) {
 	log.Printf("TestEasyScore")
 	checkEasyScore(t, 0, `.`)
 	checkEasyScore(t, 0, `
