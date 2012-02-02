@@ -2,7 +2,7 @@ package gongo
 
 import (
 	"fmt"
-        "log"
+	"log"
 	"strings"
 	"testing"
 )
@@ -343,7 +343,7 @@ func checkGenAnyMove(t *testing.T, r GoRobot, colorToPlay Color) {
 func makeBoard(boardString string) board {
 	log.Printf("making board")
 	boardString = trimBoard(boardString)
-	lines := strings.Split(boardString, "\n", -1)
+	lines := strings.Split(boardString, "\n")
 	var b board
 	b.clearBoard(len(lines))
 	log.Printf("Playing stones")
@@ -384,7 +384,7 @@ func checkBoard(t *testing.T, b GoBoard, expectedBoard string) {
 }
 
 func trimBoard(s string) string {
-	linesIn := strings.Split(s, "\n", -1)
+	linesIn := strings.Split(s, "\n")
 	linesOut := make([]string, len(linesIn))
 	goodLines := 0
 	for i := range linesIn {
@@ -401,7 +401,7 @@ func setUpBoard(r GoRobot, boardString string) {
 	boardString = trimBoard(boardString)
 	r.ClearBoard()
 	size := r.GetBoardSize()
-	lines := strings.Split(boardString, "\n", -1)
+	lines := strings.Split(boardString, "\n")
 	if len(lines) != size {
 		panic(fmt.Sprintf("wrong number of lines: %d\n'%s'",
 			len(lines), boardString))
