@@ -27,7 +27,7 @@ type randomness struct {
 
 func (r *randomness) Intn(n int) int { return int(r.src.Int63()&0x7FFFFFFF) % n }
 
-var defaultRandomness = randomness{src: rand.NewSource(time.Now())}
+var defaultRandomness = randomness{src: rand.NewSource(time.Now().Unix())}
 
 type Config struct {
 	BoardSize   int

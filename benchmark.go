@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"gongo"
+	"./gongo"
 	"os"
 	"strconv"
 )

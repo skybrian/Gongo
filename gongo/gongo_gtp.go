@@ -197,10 +197,11 @@ func (r response) String() string {
 	return prefix + " " + r.message + "\n\n"
 }
 
-var (
-	// workaround for issue 292
-	_known = func(req request) response { return handle_known_command(req) }
-	_list  = func(req request) response { return handle_list_commands(req) }
+var handlers map[string]handler
+
+func init() {
+	_known := func(req request) response { return handle_known_command(req) }
+	_list := func(req request) response { return handle_list_commands(req) }
 
 	handlers = map[string]handler{
 		"boardsize": handle_boardsize,
@@ -219,7 +220,7 @@ var (
 		"showboard":        handle_showboard,
 		"version":          func(req request) response { return success("") },
 	}
-)
+}
 
 func handle_known_command(req request) response {
 	if len(req.args) != 1 {
