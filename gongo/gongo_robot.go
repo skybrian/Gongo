@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"os"
-	"rand"
 	"time"
 )
 
@@ -27,7 +27,7 @@ type randomness struct {
 
 func (r *randomness) Intn(n int) int { return int(r.src.Int63()&0x7FFFFFFF) % n }
 
-var defaultRandomness = randomness{src: rand.NewSource(time.Nanoseconds())}
+var defaultRandomness = randomness{src: rand.NewSource(time.Now().Unix())}
 
 type Config struct {
 	BoardSize   int
@@ -88,7 +88,6 @@ func BoardToString(b GoBoard) string {
 	}
 	return out.String()
 }
-
 
 // === Implementation of a Go board ===
 
@@ -685,7 +684,6 @@ func (b *board) wouldFillEye(move pt) bool {
 
 func (r *robot) String() {}
 
-
 // === Implementation of GoRobot interface ===
 
 type robot struct {
@@ -748,10 +746,10 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 		}
 	}
 
-	startTime := time.Nanoseconds()
+	startTime := time.Now()
 	r.findWins(r.sampleCount)
-	stopTime := time.Nanoseconds()
-	elapsedTimeSecs := float64(stopTime-startTime) / math.Pow10(9)
+	stopTime := time.Now()
+	elapsedTimeSecs := float64(stopTime.Sub(startTime)) / math.Pow10(9)
 	r.log.Printf("playouts/second: %.0f", float64(r.sampleCount)/elapsedTimeSecs)
 
 	// create a list of possible moves

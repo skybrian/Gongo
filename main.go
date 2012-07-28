@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"gongo"
+	"./gongo"
+	"io"
 	"os"
 	"strconv"
 )
@@ -27,7 +28,7 @@ func main() {
 	}
 	bot := gongo.NewConfiguredRobot(conf)
 	err := gongo.Run(bot, os.Stdin, os.Stdout)
-	if err == os.EOF {
+	if err == io.EOF {
 		fmt.Fprintln(os.Stderr, "got EOF")
 	} else if err != nil {
 		fmt.Fprintf(os.Stderr, "Unexpected error: %v", err)

@@ -1,11 +1,11 @@
 package gongo
 
 import (
-	"bytes"
 	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -31,7 +31,7 @@ import (
 // Executes GTP commands using the specified robot.
 // Returns nil after the "quit" command is handled,
 // or non nil for an I/O error (which could be EOF).
-func Run(robot GoRobot, input io.Reader, out io.Writer) os.Error {
+func Run(robot GoRobot, input io.Reader, out io.Writer) error {
 	in := bufio.NewReader(input)
 	for {
 		command, args, err := parseCommand(in)
@@ -41,7 +41,7 @@ func Run(robot GoRobot, input io.Reader, out io.Writer) os.Error {
 
 		next_handler, ok := handlers[command]
 		if !ok {
-			fmt.Fprint(out, error("unknown command"))
+			fmt.Fprint(out, error_("unknown command"))
 			continue
 		}
 
@@ -158,7 +158,7 @@ func (m MoveResult) String() string {
 
 var word_regexp = regexp.MustCompile("[^ ]+")
 
-func parseCommand(in *bufio.Reader) (cmd string, args []string, err os.Error) {
+func parseCommand(in *bufio.Reader) (cmd string, args []string, err error) {
 	for {
 		line, err := in.ReadString('\n')
 		if err != nil {
@@ -170,7 +170,7 @@ func parseCommand(in *bufio.Reader) (cmd string, args []string, err os.Error) {
 			return words[0], words[1:], nil
 		}
 	}
-	return "", nil, os.NewError("shouldn't get here")
+	return "", nil, errors.New("shouldn't get here")
 }
 
 type handler func(request) response
@@ -187,7 +187,7 @@ type response struct {
 
 func success(message string) response { return response{message, true} }
 
-func error(message string) response { return response{message, false} }
+func error_(message string) response { return response{message, false} }
 
 func (r response) String() string {
 	prefix := "="
@@ -197,10 +197,11 @@ func (r response) String() string {
 	return prefix + " " + r.message + "\n\n"
 }
 
-var (
-	// workaround for issue 292
-	_known = func(req request) response { return handle_known_command(req) }
-	_list  = func(req request) response { return handle_list_commands(req) }
+var handlers map[string]handler
+
+func init() {
+	_known := func(req request) response { return handle_known_command(req) }
+	_list := func(req request) response { return handle_list_commands(req) }
 
 	handlers = map[string]handler{
 		"boardsize": handle_boardsize,
@@ -219,11 +220,11 @@ var (
 		"showboard":        handle_showboard,
 		"version":          func(req request) response { return success("") },
 	}
-)
+}
 
 func handle_known_command(req request) response {
 	if len(req.args) != 1 {
-		return error("wrong number of arguments")
+		return error_("wrong number of arguments")
 	}
 
 	_, ok := handlers[req.args[0]]
@@ -232,7 +233,7 @@ func handle_known_command(req request) response {
 
 func handle_list_commands(req request) response {
 	if len(req.args) != 0 {
-		return error("wrong number of arguments")
+		return error_("wrong number of arguments")
 	}
 
 	names := make([]string, len(handlers))
@@ -248,16 +249,16 @@ func handle_list_commands(req request) response {
 
 func handle_boardsize(req request) response {
 	if len(req.args) != 1 {
-		return error("wrong number of arguments")
+		return error_("wrong number of arguments")
 	}
 
 	size, err := strconv.Atoi(req.args[0])
 	if err != nil {
-		return error("unacceptable size")
+		return error_("unacceptable size")
 	}
 
 	if !req.robot.SetBoardSize(size) {
-		return error("unacceptable size")
+		return error_("unacceptable size")
 	}
 
 	return success("")
@@ -265,12 +266,12 @@ func handle_boardsize(req request) response {
 
 func handle_komi(req request) response {
 	if len(req.args) != 1 {
-		return error("wrong number of arguments")
+		return error_("wrong number of arguments")
 	}
 
-	komi, err := strconv.Atof64(req.args[0])
+	komi, err := strconv.ParseFloat(req.args[0], 64)
 	if err != nil {
-		return error("syntax error")
+		return error_("syntax error")
 	}
 
 	req.robot.SetKomi(komi)
@@ -279,22 +280,22 @@ func handle_komi(req request) response {
 
 func handle_play(req request) response {
 	if len(req.args) != 2 {
-		return error("wrong number of arguments")
+		return error_("wrong number of arguments")
 	}
 
 	color, ok := ParseColor(req.args[0])
 	if !ok {
-		return error("syntax error")
+		return error_("syntax error")
 	}
 
 	x, y, ok := stringToVertex(req.args[1])
 	if !ok {
-		return error("syntax error")
+		return error_("syntax error")
 	}
 
 	ok, _ = req.robot.Play(color, x, y)
 	if !ok {
-		return error("illegal move")
+		return error_("illegal move")
 	}
 
 	return success("")
@@ -302,12 +303,12 @@ func handle_play(req request) response {
 
 func handle_genmove(req request) (response response) {
 	if len(req.args) != 1 {
-		return error("wrong number of arguments")
+		return error_("wrong number of arguments")
 	}
 
 	color, ok := ParseColor(req.args[0])
 	if !ok {
-		return error("syntax error")
+		return error_("syntax error")
 	}
 
 	x, y, status := req.robot.GenMove(color)
@@ -317,7 +318,7 @@ func handle_genmove(req request) (response response) {
 		if ok {
 			response = success(message)
 		} else {
-			response = error(message)
+			response = error_(message)
 		}
 	case Passed:
 		response = success("pass")
@@ -330,7 +331,7 @@ func handle_genmove(req request) (response response) {
 
 func handle_showboard(req request) response {
 	if len(req.args) != 0 {
-		return error("wrong number of arguments")
+		return error_("wrong number of arguments")
 	}
 
 	size := req.robot.GetBoardSize()
