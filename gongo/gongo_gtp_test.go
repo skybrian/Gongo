@@ -235,7 +235,7 @@ func checkRun(t *testing.T, g GoRobot, input, expected string) {
 			format(input), format(expected), format(actual.String()))
 	}
 	if result != nil {
-		t.Errorf("unexpected error: %s", result.String())
+		t.Errorf("unexpected error: %v", result)
 	}
 }
 
