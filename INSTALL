@@ -1,26 +1,31 @@
 Installation instructions for Gongo:
 
-1) Install a Go language compiler. I mostly use gc but have occasionally
-tried gccgo.
+1) Install the Go compiler. (I have tried gccgo but not recently. These
+instructions are for the Go compiler.)
 
 Instructions: http://golang.org/doc/install.html
 
 2) Run tests
 
+You can do this from the "gongo" subdirectory:
+
 cd gongo
-gotest
+go test
+cd ..
 
-3) Build the binaries
-
-make
+3) Build and run binaries
 
 There are two binaries, main and benchmark.
 
 The "benchmark" program plays games against itself out to a given number of
 moves. It's useful mostly for performance testing.
 
+go run benchmark.go
+
 The "main" program speaks a minimal version of the Go Text Protocol (GTP),
 which is a standard for Go-playing robots. 
+
+go build main.go
 
 4) Install GoGui
 
@@ -35,7 +40,10 @@ In GoGui, attach the Gongo program. Select:
 
    Program -> New Program... 
 
-Then enter the full path to the main executable.
+Then enter the full path to the main executable and the number of playouts
+wanted. For example, here's how I run it:
+
+  /Users/skybrian/projects/gongo/main 10000
 
 6) Play some games
 
