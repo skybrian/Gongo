@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"./gongo"
+	"fmt"
 	"os"
 	"strconv"
 )
