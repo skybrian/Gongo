@@ -4,5 +4,3 @@
 _obj
 _test
 *.out
-benchmark
-main

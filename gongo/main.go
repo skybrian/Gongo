@@ -1,7 +1,7 @@
 package main
 
 import (
-	"./gongo"
+	"github.com/skybrian/Gongo"
 	"fmt"
 	"io"
 	"os"
