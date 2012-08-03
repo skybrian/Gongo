@@ -1,51 +1,60 @@
 Installation instructions for Gongo:
 
-1) Install the Go compiler. (I have tried gccgo but not recently. These
-instructions are for the Go compiler.)
+1) Install the "go" command. 
 
 Instructions: http://golang.org/doc/install.html
 
-2) Run tests
+(I have tried gccgo but not recently. These
+instructions are for the regular Go compiler.)
 
-You can do this from the "gongo" subdirectory:
+2) Make sure that $GOPATH is set somewhere reasonable.
 
-cd gongo
+mkdir go
+cd go
+export GOPATH=`pwd`
+
+3) download Gongo
+
+go get github.com/skybrian/Gongo
+
+This compiles and installs the library in $GOPATH/pkg
+
+4) Run tests
+
+cd src/github.com/skybrian/Gongo
 go test
-cd ..
 
-3) Build and run binaries
+5) Install binaries
 
-There are two binaries, main and benchmark.
+go install ./gongo ./gongo-benchmark
 
-The "benchmark" program plays games against itself out to a given number of
-moves. It's useful mostly for performance testing.
+6) Try out the benchmark
 
-go run benchmark.go
+$GOPATH/bin/gongo-benchmark
 
-The "main" program speaks a minimal version of the Go Text Protocol (GTP),
-which is a standard for Go-playing robots. 
+The "gongo-benchmark" program plays games against itself out to a given
+number of moves. It's useful mostly for performance testing.
 
-go build main.go
-
-4) Install GoGui
-
-You could use "main" from the command line, but it's better to install a user
-interface such as GoGui.
+7) Install GoGui
 
 http://gogui.sourceforge.net/
 
-5) Configure GoGui to use Gongo
+The "gongo" program is a Go player that speaks the GTP protocol. It's
+possible to run it directly, but better to use a user interface such as
+GoGui.
+
+8) Configure GoGui to use Gongo
 
 In GoGui, attach the Gongo program. Select:
 
    Program -> New Program... 
 
-Then enter the full path to the main executable and the number of playouts
+Then enter the full path to the "gongo" executable and the number of playouts
 wanted. For example, here's how I run it:
 
-  /Users/skybrian/projects/gongo/main 10000
+  /Users/skybrian/go/bin/gongo 10000
 
-6) Play some games
+9) Play some games
 
 You can play games against Gongo or have it play itself. To have Gongo play
 itself on a 9x9 board:
