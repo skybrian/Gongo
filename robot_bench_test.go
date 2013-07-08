@@ -27,3 +27,16 @@ func Benchmark9x9GenMove(b *testing.B) {
 		color=color.GetOpponent()
 	}
 }
+
+func Benchmark19x19RandomGame(bench *testing.B) {
+	b := new(board)
+	b.clearBoard(19)
+	eboard := new(board)
+	eboard.clearBoard(19)
+	rng := rand.New(rand.NewSource(int64(2131)))
+	bench.ResetTimer()
+	for i := 0; i < bench.N; i++ {
+		b.playRandomGame(rng)
+		b.copyFrom(eboard)
+	}
+}
