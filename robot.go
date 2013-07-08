@@ -27,7 +27,7 @@ type randomness struct {
 
 func (r *randomness) Intn(n int) int { return int(r.src.Int63()&0x7FFFFFFF) % n }
 
-var defaultRandomness = randomness{src: rand.NewSource(time.Now().Unix())}
+var defaultRandomness = &randomness{src: rand.NewSource(time.Now().Unix())}
 
 type Config struct {
 	BoardSize   int
@@ -58,7 +58,7 @@ func NewConfiguredRobot(config Config) GoRobot {
 	if config.Randomness != nil {
 		result.randomness = config.Randomness
 	} else {
-		result.randomness = &defaultRandomness
+		result.randomness = defaultRandomness
 	}
 	if config.Log != nil {
 		result.log = config.Log
@@ -217,7 +217,7 @@ type board struct {
 	dirOffset  [4]pt // amount to add to a pt to move in each cardinal direction
 	diagOffset [4]pt // amount to add to a pt to move in each diagonal direction
 
-	cells          [maxStride*maxRowCount + 1]cell
+	cells          []cell
 	allPoints      []pt  // List of all points on the board. (Skips barrier cells.)
 	neighborCounts []int // Holds counts of how many neighbors a cell has (4 - liberties)
 
@@ -246,6 +246,7 @@ func (b *board) clearBoard(newSize int) (ok bool) {
 	b.diagOffset[2] = pt(-b.stride - 1) // sw
 	b.diagOffset[3] = pt(-b.stride + 1) // se
 
+	b.cells = make([]cell, (b.stride)*(b.stride+1)+1)
 	b.allPoints = make([]pt, b.size*b.size)
 	b.neighborCounts = make([]int, len(b.cells))
 
