@@ -34,7 +34,9 @@ func Benchmark9x9GenMove(b *testing.B) {
 	color := Black
 	for i := 0; i < b.N; i++ {
 		robot.GenMove(color)
-		color = color.GetOpponent()
+		b.StopTimer()
+		robot.ClearBoard()
+		b.StartTimer()
 	}
 }
 

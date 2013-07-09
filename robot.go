@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"os"
 	"time"
+	"sort"
 )
 
 // === Public API ===
@@ -748,7 +749,24 @@ func (r *robot) Play(color Color, x, y int) (ok bool, message string) {
 	return result.toPlayResult(captures)
 }
 
+// Generate a move
 func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
+	r.genMoves(color) // generates candidate moves
+	bestMove := r.candidates[0]
+	result, _ := r.makeMove(bestMove)
+	if result == played {
+		x, y := r.board.getCoords(bestMove)
+		return x, y, Played
+	} else if result == passed {
+		return 0, 0, Passed
+	}
+	panic(fmt.Sprintf("can't make generated move? %s", result))
+}
+
+// Uses findWins to evaluate win percentage of all available moves
+// after calling candidates will be sorted by wincount
+// (samplesize breaks ties)
+func (r *robot) genMoves(color Color) {
 	if !r.board.isMyTurn(color) {
 		// GTP protocol allows generating a move by either side;
 		// treat as if the other player passed.
@@ -764,42 +782,26 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 	r.log.Printf("playouts/second: %.0f", float64(r.sampleCount)/elapsedTimeSecs)
 
 	// create a list of possible moves
-	candidates := r.candidates // reuse array to avoid allocation
 	candidateCount := 0
 	for _, pt := range r.board.allPoints {
 		if r.hits[pt] > 0 && !r.board.wouldFillEye(pt) && r.checkLegalMove(pt) == played {
-			candidates[candidateCount] = pt
+			r.candidates[candidateCount] = pt
 			candidateCount++
 		}
 	}
 
-	// choose best move by iterating through candidates
-	// (randomly permuted to break ties randomly)
-	bestMove := PASS
-	bestScore := float64(-99.0)
-	for i := 0; i < candidateCount; i++ {
-
-		// permute
-		randomIndex := i + rand.Intn(candidateCount-i)
-		pt := r.candidates[randomIndex]
-		r.candidates[randomIndex], r.candidates[i] = r.candidates[i], pt
-
-		score := float64(r.wins[pt]) / float64(r.hits[pt])
-		if score > bestScore {
-			bestMove = pt
-			bestScore = score
+	// sort candidates by win ratio, sample size breaks ties
+	// sort in reverse order (greatest value first)
+	sortfunc := func(p1, p2 pt) bool {
+		p1score := float64(r.wins[p1]) / float64(r.hits[p1])
+		p2score := float64(r.wins[p2]) / float64(r.hits[p2])
+		if p1score == p2score {
+			return r.hits[p1] > r.hits[p2]
 		}
+		return p1score > p2score
 	}
 
-	result, _ := r.makeMove(bestMove)
-
-	if result == played {
-		x, y := r.board.getCoords(bestMove)
-		return x, y, Played
-	} else if result == passed {
-		return 0, 0, Passed
-	}
-	panic(fmt.Sprintf("can't make generated move? %s", result))
+	ptsortfunc(sortfunc).Sort(r.candidates)
 }
 
 func (r *robot) GetBoardSize() int { return r.board.GetBoardSize() }
@@ -923,4 +925,37 @@ func (r *robot) evaluate(numSamples int) (ratio float64) {
 	}
 	ratio = float64(wins) / float64(numSamples-draws)
 	return ratio
+}
+
+// the following methods are needed to sort a slice of points using the Sort package
+
+type ptsortfunc func(p1, p2 pt) bool
+
+func (by ptsortfunc) Sort(points []pt) {
+	ps := &ptSorter{
+		points: points,
+		by:     by, // The Sort method's receiver is the function (closure) that defines the sort order.
+	}
+	sort.Sort(ps)
+}
+
+// ptSorter joins a By function and a slice of points to be sorted.
+type ptSorter struct {
+	points []pt
+	by      func(p1, p2 pt) bool // Closure used in the Less method.
+}
+
+// Len is part of sort.Interface.
+func (s *ptSorter) Len() int {
+	return len(s.points)
+}
+
+// Swap is part of sort.Interface.
+func (s *ptSorter) Swap(i, j int) {
+	s.points[i], s.points[j] = s.points[j], s.points[i]
+}
+
+// Less is part of sort.Interface. It is implemented by calling the "by" closure in the sorter.
+func (s *ptSorter) Less(i, j int) bool {
+	return s.by(s.points[i], s.points[j])
 }
