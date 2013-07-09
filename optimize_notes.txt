@@ -437,5 +437,23 @@ Benchmark9x9GenMove        50     	  47516808 ns/op
 20749 20514 20906
 
 
+removed full scan of moves slice from findwins loop, good
+before:
+Benchmark9x9RandomGame	   50000	     44248 ns/op
+Benchmark9x9GenMove	      50	  44388149 ns/op
+Benchmark9x9FindWins	      50	  44214448 ns/op
+Benchmark19x19RandomGame   10000	    267152 ns/op
+
+after:
+Benchmark9x9RandomGame	   50000	     44332 ns/op
+Benchmark9x9GenMove	      50	  40721911 ns/op
+Benchmark9x9FindWins	      50	  40614444 ns/op
+Benchmark19x19RandomGame   10000	    267170 ns/op
+ 24939 24973 24809
+ 24445 24424 24566
+ 24929
+
+
+
 
 

@@ -702,6 +702,7 @@ type robot struct {
 	scratchBoard *board
 	candidates   []pt  // moves to choose from; used in GenMove.
 	wins, hits   []int // results of findWins()
+	updated      []int // used in findWins
 }
 
 func (r *robot) SetBoardSize(newSize int) bool {
@@ -713,6 +714,7 @@ func (r *robot) SetBoardSize(newSize int) bool {
 	r.candidates = make([]pt, len(r.board.allPoints))
 	r.wins = make([]int, len(r.board.cells))
 	r.hits = make([]int, len(r.board.cells))
+	r.updated = make([]int, len(r.board.cells))
 	return true
 }
 
@@ -861,17 +863,25 @@ func (r *robot) findWins(numSamples int) {
 
 		// For each point where the first player to play was the current
 		// player, add winAmount. (All Moves As First heuristic)
+		for i := range r.updated {
+			r.updated[i] = 0
+		}
 	scoring:
 		for i := r.board.moveCount; i < sb.moveCount; i += 2 {
 			pt := sb.moves[i] & MOVE_TO_PT_MASK
-
-			// check that it hasn't been played yet
-			for j := r.board.moveCount; j < i; j++ {
-				if sb.moves[j] == pt {
+			/*
+				if pt == 0 {
+					// skip passes
 					continue scoring
 				}
+			*/
+
+			// check that it hasn't been played yet
+			if r.updated[pt] != 0 {
+				continue scoring
 			}
 
+			r.updated[pt] = 1
 			r.wins[pt] += winAmount
 			r.hits[pt]++
 		}
