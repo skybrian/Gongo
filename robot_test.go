@@ -210,16 +210,30 @@ func TestGenMoveOnEachBoardSize(t *testing.T) {
 	}
 }
 
+func TestEvaluate(t *testing.T) {
+	r := newRobot(Config{BoardSize: 6})
+	setUpBoard(r, `
+.O.@O.
+OO@@O.
+.@@OO.
+@@O...
+OOO.O.
+......`)
+	ratio := r.evaluate(1000)
+	if ratio > 0.15 {
+		t.Error("evaluate thinks it can win a lost game")
+	}
+}
+
 // === test internals ===
 
 func TestGenerateAllSize1Games(t *testing.T) {
 	log.Printf("TestGenerateAllSize1Games")
 	faker := new(fakeRandomness)
-	var b board
 
-	b.clearBoard(1)
+	b, _ := newBoard(1)
 	b.playRandomGame(faker)
-	checkBoard(t, &b, `.`)
+	checkBoard(t, b, `.`)
 	if faker.next() {
 		t.Error("expected only one game")
 	}
@@ -340,12 +354,11 @@ func checkGenAnyMove(t *testing.T, r GoRobot, colorToPlay Color) {
 	}
 }
 
-func makeBoard(boardString string) board {
+func makeBoard(boardString string) *board {
 	log.Printf("making board")
 	boardString = trimBoard(boardString)
 	lines := strings.Split(boardString, "\n")
-	var b board
-	b.clearBoard(len(lines))
+	b, _ := newBoard(len(lines))
 	log.Printf("Playing stones")
 	for rowNum := range lines {
 		line := strings.TrimSpace(lines[rowNum])
@@ -438,11 +451,10 @@ func generateAllGames(size int) (games map[string]int, total int) {
 	games = make(map[string]int)
 
 	r := new(fakeRandomness)
-	b := new(board)
 
 	total = 0
 	for {
-		b.clearBoard(size)
+		b, _ := newBoard(size)
 		b.playRandomGame(r)
 		boardString := BoardToString(b)
 		if _, ok := games[boardString]; ok {

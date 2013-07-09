@@ -41,6 +41,10 @@ func NewRobot(boardSize int) GoRobot {
 }
 
 func NewConfiguredRobot(config Config) GoRobot {
+	return newRobot(config)
+}
+
+func newRobot(config Config) *robot {
 	result := new(robot)
 	result.board = new(board)
 	result.scratchBoard = new(board)
@@ -231,9 +235,10 @@ type board struct {
 	candidates  []pt // moves to choose from; used in playRandomGame.
 }
 
-func (b *board) clearBoard(newSize int) (ok bool) {
+func newBoard(newSize int) (b *board, ok bool) {
+	b = new(board)
 	if newSize > maxBoardSize {
-		return false
+		return nil, false
 	}
 	b.size = newSize
 	b.stride = newSize + 1
@@ -277,7 +282,7 @@ func (b *board) clearBoard(newSize int) (ok bool) {
 
 	b.chainPoints = make([]pt, len(b.allPoints))
 	b.candidates = make([]pt, len(b.allPoints))
-	return true
+	return b, true
 }
 
 func (b board) GetBoardSize() int { return b.size }
@@ -686,7 +691,6 @@ func (b *board) wouldFillEye(move pt) bool {
 func (r *robot) String() {}
 
 // === Implementation of GoRobot interface ===
-
 type robot struct {
 	board       *board
 	randomness  Randomness
@@ -705,10 +709,16 @@ type robot struct {
 }
 
 func (r *robot) SetBoardSize(newSize int) bool {
-	if !r.board.clearBoard(newSize) {
+	b, ok := newBoard(newSize)
+	if !ok {
 		return false
 	}
-	r.scratchBoard.clearBoard(newSize)
+	sb, ok := newBoard(newSize)
+	if !ok {
+		return false
+	}
+	r.board = b
+	r.scratchBoard = sb
 	r.boardHashes = make([]int64, len(r.board.moves))
 	r.candidates = make([]pt, len(r.board.allPoints))
 	r.wins = make([]int, len(r.board.cells))
@@ -831,9 +841,10 @@ func (r *robot) checkLegalMove(move pt) (result moveResult) {
 }
 
 // Use Monte-Carlo simulation to find a win rate for each point on the board.
+// returns win percentage
 // On return, r.wins[pt] will have the number of wins minus losses associated
 // with a point and r.hits[pt] will have the number of samples for that point.
-func (r *robot) findWins(numSamples int) {
+func (r *robot) findWins(numSamples int) (ratio float64) {
 	// clear statistics
 	for i := range r.wins {
 		r.wins[i] = 0
@@ -841,6 +852,7 @@ func (r *robot) findWins(numSamples int) {
 	}
 
 	sb := r.scratchBoard
+	var wins, draws int
 	for i := 0; i < numSamples; i++ {
 		sb.copyFrom(r.board)
 		sb.playRandomGame(r.randomness)
@@ -854,9 +866,13 @@ func (r *robot) findWins(numSamples int) {
 			winAmount = -1
 		} else {
 			winAmount = 0 // a draw
+			draws++
 		}
 		if r.board.getFriendlyStone() == WHITE {
 			winAmount = -winAmount
+		}
+		if winAmount > 0 {
+			wins++
 		}
 
 		// For each point where the first player to play was the current
@@ -876,4 +892,35 @@ func (r *robot) findWins(numSamples int) {
 			r.hits[pt]++
 		}
 	}
+	ratio = float64(wins) / float64(numSamples-draws)
+	return ratio
+}
+
+// Use Monte-Carlo simulation to evaluate a position, plays numSamples games
+// and returns win ratio
+func (r *robot) evaluate(numSamples int) (ratio float64) {
+	sb := r.scratchBoard
+	var wins, draws int
+	for i := 0; i < numSamples; i++ {
+		sb.copyFrom(r.board)
+		sb.playRandomGame(r.randomness)
+		score := sb.getEasyScore()
+		var winAmount int
+		if float64(score) > r.komi {
+			winAmount = 1
+		} else if float64(score) < r.komi {
+			winAmount = -1
+		} else {
+			winAmount = 0 // a draw
+			draws++
+		}
+		if r.board.getFriendlyStone() == WHITE {
+			winAmount = -winAmount
+		}
+		if winAmount > 0 {
+			wins++
+		}
+	}
+	ratio = float64(wins) / float64(numSamples-draws)
+	return ratio
 }
