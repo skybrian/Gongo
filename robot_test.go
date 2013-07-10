@@ -170,13 +170,12 @@ func TestMakeMoveWhenBoardIsEmpty(t *testing.T) {
 
 func TestMakeMoveWhenSameSidePlayedLast(t *testing.T) {
 	log.Printf("TestMakeMoveWhenSomeSidePlayedLast")
-	r := newRobot(Config{BoardSize:3})
+	r := newRobot(Config{BoardSize: 3})
 	playLegal(t, r, Black, 1, 1, `
 ...
 ...
 @..`)
 	checkGenAnyMove(t, r, Black)
-	log.Printf(r.Debug())
 }
 
 func TestPassInsteadOfFillingOnePointEyes(t *testing.T) {

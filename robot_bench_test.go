@@ -64,3 +64,24 @@ func Benchmark19x19RandomGame(bench *testing.B) {
 		b.copyFrom(eboard)
 	}
 }
+
+func Benchmark9x9findWinsMulti(b *testing.B) {
+	c := Config{BoardSize: 9, Log: log.New(new(DevNull), "", 0)}
+	m, _ := newConfiguredMultiRobot(c)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.findWinsMulti(1000)
+	}
+}
+
+func Benchmark9x9GenMoveMulti(b *testing.B) {
+	c := Config{BoardSize: 9, Log: log.New(new(DevNull), "", 0)}
+	m, _ := newConfiguredMultiRobot(c)
+	color := Black
+	for i := 0; i < b.N; i++ {
+		m.GenMove(color)
+		b.StopTimer()
+		m.ClearBoard()
+		b.StartTimer()
+	}
+}

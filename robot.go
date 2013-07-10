@@ -12,8 +12,8 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"time"
 	"sort"
+	"time"
 )
 
 // === Public API ===
@@ -705,6 +705,7 @@ type robot struct {
 
 	// Scratch variables, reused to avoid GC
 	scratchBoard *board
+	candCount    int   // candidates considered
 	candidates   []pt  // moves to choose from; used in GenMove.
 	wins, hits   []int // results of findWins()
 	updated      []int // used in findWins
@@ -719,6 +720,7 @@ func (r *robot) SetBoardSize(newSize int) bool {
 	if !ok {
 		return false
 	}
+	r.candCount = 0
 	r.board = b
 	r.scratchBoard = sb
 	r.boardHashes = make([]int64, len(r.board.moves))
@@ -730,8 +732,17 @@ func (r *robot) SetBoardSize(newSize int) bool {
 }
 
 func (r *robot) Debug() string {
-	info := fmt.Sprintf("cells :%v\npoints: %v\nmoves: %v\nrcand: %v\nhits: %v\nwins: %v\n", r.board.cells, r.board.allPoints, r.board.moves[0:r.board.moveCount], r.candidates, r.hits, r.wins)
-	return info
+	names := map[int]string{
+		1: "A", 2: "B", 3: "C", 4: "D", 5: "E",
+		6: "F", 7: "G", 8: "H", 9: "J", 10: "K",
+		11: "L", 12: "M", 13: "N", 14: "O", 15: "P",
+		16: "Q", 17: "R", 18: "S", 19: "T"}
+	hc := make([]string, r.candCount)
+	for i := 0; i < r.candCount; i++ {
+		x, y := r.board.getCoords(r.candidates[i])
+		hc[i] = fmt.Sprintf("%s%d", names[x], y)
+	}
+	return fmt.Sprintf("cells :%v\npoints: %v\nmoves: %v\nhits: %v\nwins: %v\nrcand: %v\nhcand: %v\n", r.board.cells, r.board.allPoints, r.board.moves[0:r.board.moveCount], r.hits, r.wins, r.candidates, hc)
 }
 
 func (r *robot) ClearBoard() { r.SetBoardSize(r.board.size) }
@@ -767,7 +778,7 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 	} else if result == passed {
 		return 0, 0, Passed
 	}
-	panic(fmt.Sprintf("can't make generated move? %s", result))
+	panic(fmt.Sprintf("can't make generated move? %s\n%v", result, r.Debug()))
 }
 
 // Uses findWins to evaluate win percentage of all available moves
@@ -808,7 +819,8 @@ func (r *robot) genMoves(color Color) {
 		return p1score > p2score
 	}
 
-	ptsortfunc(sortfunc).Sort(r.candidates)
+	ptsortfunc(sortfunc).Sort(r.candidates[:candidateCount])
+	r.candCount = candidateCount
 }
 
 func (r *robot) GetBoardSize() int { return r.board.GetBoardSize() }
@@ -909,6 +921,10 @@ func (r *robot) findWins(numSamples int) (ratio float64) {
 			r.hits[pt]++
 		}
 	}
+	if draws == numSamples {
+		// avoid division by zero
+		return 0.5
+	}
 	ratio = float64(wins) / float64(numSamples-draws)
 	return ratio
 }
@@ -957,7 +973,7 @@ func (by ptsortfunc) Sort(points []pt) {
 // ptSorter joins a By function and a slice of points to be sorted.
 type ptSorter struct {
 	points []pt
-	by      func(p1, p2 pt) bool // Closure used in the Less method.
+	by     func(p1, p2 pt) bool // Closure used in the Less method.
 }
 
 // Len is part of sort.Interface.
