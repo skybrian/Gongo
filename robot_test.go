@@ -164,17 +164,19 @@ func TestPassWhenNoMovesLeft(t *testing.T) {
 
 func TestMakeMoveWhenBoardIsEmpty(t *testing.T) {
 	log.Printf("TestMakeMoveWhenBoardIsEmpty")
-	r := NewRobot(2)
+	r := NewRobot(3)
 	checkGenAnyMove(t, r, Black)
 }
 
 func TestMakeMoveWhenSameSidePlayedLast(t *testing.T) {
 	log.Printf("TestMakeMoveWhenSomeSidePlayedLast")
-	r := NewRobot(2)
+	r := newRobot(Config{BoardSize:3})
 	playLegal(t, r, Black, 1, 1, `
-..
-@.`)
+...
+...
+@..`)
 	checkGenAnyMove(t, r, Black)
+	log.Printf(r.Debug())
 }
 
 func TestPassInsteadOfFillingOnePointEyes(t *testing.T) {
@@ -200,10 +202,10 @@ func TestPreferCenter(t *testing.T) {
 
 func TestGenMoveOnEachBoardSize(t *testing.T) {
 	log.Printf("TestGenMoveOnEachBoadSize")
-	for i := 3; i <= 13; i += 2 {
+	for i := 3; i <= 19; i += 2 {
 		var c Config
 		c.BoardSize = i
-		c.SampleCount = 5
+		c.SampleCount = 10
 		r := NewConfiguredRobot(c)
 		checkGenAnyMove(t, r, Black)
 		checkGenAnyMove(t, r, White)

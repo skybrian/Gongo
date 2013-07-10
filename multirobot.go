@@ -66,6 +66,10 @@ func newConfiguredMultiRobot(config Config) (m *multirobot, err error) {
 	return m, nil
 }
 
+func (m *multirobot) Debug() string {
+	return m.mr.Debug()
+}
+
 func (m *multirobot) GetBoardSize() int {
 	return m.mr.board.GetBoardSize()
 }

@@ -13,6 +13,7 @@ func TestListCommands(t *testing.T) {
 	checkCommand(t, nil, "list_commands",
 		`boardsize
 clear_board
+debug
 genmove
 known_command
 komi
@@ -165,6 +166,8 @@ func (r *fake_robot) SetBoardSize(value int) bool {
 	r.board_size = value
 	return r.send_ok
 }
+
+func (r *fake_robot) Debug() string { return "debug info" }
 
 func (r *fake_robot) ClearBoard() { r.board_cleared = true }
 

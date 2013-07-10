@@ -729,6 +729,11 @@ func (r *robot) SetBoardSize(newSize int) bool {
 	return true
 }
 
+func (r *robot) Debug() string {
+	info := fmt.Sprintf("cells :%v\npoints: %v\nmoves: %v\nrcand: %v\nhits: %v\nwins: %v\n", r.board.cells, r.board.allPoints, r.board.moves[0:r.board.moveCount], r.candidates, r.hits, r.wins)
+	return info
+}
+
 func (r *robot) ClearBoard() { r.SetBoardSize(r.board.size) }
 
 func (r *robot) SetKomi(value float64) { r.komi = value }

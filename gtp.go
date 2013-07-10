@@ -88,6 +88,7 @@ type GoRobot interface {
 	// color. The robot may be asked to play a move for either side.
 	// The result is one of Played, Passed, or Resigned.
 	GenMove(color Color) (x, y int, result MoveResult)
+	Debug() string
 
 	GoBoard
 }
@@ -218,6 +219,7 @@ func init() {
 		"protocol_version": func(req request) response { return success("2") },
 		"quit":             func(req request) response { return success("") },
 		"showboard":        handle_showboard,
+		"debug":            handle_debug,
 		"version":          func(req request) response { return success("") },
 	}
 }
@@ -392,4 +394,12 @@ func vertexToString(x, y int) (result string, ok bool) {
 		x_letter++
 	}
 	return fmt.Sprintf("%c%v", x_letter, y), true
+}
+
+func handle_debug(req request) response {
+	if len(req.args) != 0 {
+		return error_("wrong number of arguments")
+	}
+	dbginfo := req.robot.Debug()
+	return success(dbginfo)
 }
