@@ -386,6 +386,7 @@ func stringToVertex(input string) (x, y int, ok bool) {
 }
 
 func vertexToString(x, y int) (result string, ok bool) {
+	// FIXME should this handle passes too ?
 	if x < 1 || x > MaxBoardSize || y < 1 || y > MaxBoardSize {
 		return fmt.Sprintf("invalid: (%v,%v)", x, y), false
 	}

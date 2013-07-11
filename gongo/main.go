@@ -26,7 +26,7 @@ func main() {
 	} else {
 		UsageError()
 	}
-	bot := gongo.NewConfiguredRobot(conf)
+	bot := gongo.NewConfiguredMultiRobot(conf)
 	err := gongo.Run(bot, os.Stdin, os.Stdout)
 	if err == io.EOF {
 		fmt.Fprintln(os.Stderr, "got EOF")

@@ -732,15 +732,15 @@ func (r *robot) SetBoardSize(newSize int) bool {
 }
 
 func (r *robot) Debug() string {
-	names := map[int]string{
-		1: "A", 2: "B", 3: "C", 4: "D", 5: "E",
-		6: "F", 7: "G", 8: "H", 9: "J", 10: "K",
-		11: "L", 12: "M", 13: "N", 14: "O", 15: "P",
-		16: "Q", 17: "R", 18: "S", 19: "T"}
 	hc := make([]string, r.candCount)
 	for i := 0; i < r.candCount; i++ {
 		x, y := r.board.getCoords(r.candidates[i])
-		hc[i] = fmt.Sprintf("%s%d", names[x], y)
+		s, ok := vertexToString(x, y)
+		if !ok {
+			hc[i] = "Pass"
+		} else {
+			hc[i] = s
+		}
 	}
 	return fmt.Sprintf("cells :%v\npoints: %v\nmoves: %v\nhits: %v\nwins: %v\nrcand: %v\nhcand: %v\n", r.board.cells, r.board.allPoints, r.board.moves[0:r.board.moveCount], r.hits, r.wins, r.candidates, hc)
 }

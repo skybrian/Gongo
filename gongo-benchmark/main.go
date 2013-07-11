@@ -36,7 +36,7 @@ func main() {
 	var conf gongo.Config
 	conf.BoardSize = 9
 	for game := 0; game < gameCount; game++ {
-		r := gongo.NewConfiguredRobot(conf)
+		r := gongo.NewConfiguredMultiRobot(conf)
 		color := gongo.Black
 		for i := 0; i < moveCount; i++ {
 			r.GenMove(color)
