@@ -407,3 +407,53 @@ Oops, forgot to use -server
 
 plug-and-go 17,857 - 500000 in 28 seconds
 Jrefbot 10,000     - 500000 in 50 seconds
+
+
+2013-07-08 From here on, testing with go1.1.1
+
+initial benchmark:
+Benchmark9x9RandomGame	   50000	     53197 ns/op
+Benchmark9x9GenMove        50      	  53606281 ns/op
+Benchmark19x19RandomGame   5000		    322353 ns/op
+17706 17896 17869
+17643 17718 17887
+
+Use slice rather than array for board.cells
+large improvement, even for 19x19 board
+
+Benchmark9x9RandomGame	   50000	     44559 ns/op
+Benchmark9x9GenMove	   50    	  40526152 ns/op
+Benchmark19x19RandomGame   10000	    267673 ns/op
+22735 22670 22774
+23245 22748 23418
+23037 23111 23291
+
+Remove randomness hack, worse, reverted
+
+Benchmark9x9RandomGame	   50000	     44499 ns/op
+Benchmark9x9GenMove        50     	  47516808 ns/op
+20434 20574 20384
+20349 20562 20557
+20749 20514 20906
+
+
+removed full scan of moves slice from findwins loop, good
+before:
+Benchmark9x9RandomGame	   50000	     44248 ns/op
+Benchmark9x9GenMove	      50	  44388149 ns/op
+Benchmark9x9FindWins	      50	  44214448 ns/op
+Benchmark19x19RandomGame   10000	    267152 ns/op
+
+after:
+Benchmark9x9RandomGame	   50000	     44332 ns/op
+Benchmark9x9GenMove	      50	  40721911 ns/op
+Benchmark9x9FindWins	      50	  40614444 ns/op
+Benchmark19x19RandomGame   10000	    267170 ns/op
+ 24939 24973 24809
+ 24445 24424 24566
+ 24929
+
+
+
+
+

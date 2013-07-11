@@ -4,3 +4,4 @@
 _obj
 _test
 *.out
+*.sw[op]
