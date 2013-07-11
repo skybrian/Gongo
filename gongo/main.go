@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/skybrian/Gongo"
 	"fmt"
+	"github.com/skybrian/Gongo"
 	"io"
 	"os"
 	"strconv"
@@ -26,8 +26,11 @@ func main() {
 	} else {
 		UsageError()
 	}
-	bot := gongo.NewConfiguredMultiRobot(conf)
-	err := gongo.Run(bot, os.Stdin, os.Stdout)
+	bot, err := gongo.NewConfiguredMultiRobot(conf)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unexpected error: %v", err)
+	}
+	err = gongo.Run(bot, os.Stdin, os.Stdout)
 	if err == io.EOF {
 		fmt.Fprintln(os.Stderr, "got EOF")
 	} else if err != nil {

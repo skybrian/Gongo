@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/skybrian/Gongo"
 	"fmt"
+	"github.com/skybrian/Gongo"
 	"os"
 	"strconv"
 )
@@ -36,7 +36,11 @@ func main() {
 	var conf gongo.Config
 	conf.BoardSize = 9
 	for game := 0; game < gameCount; game++ {
-		r := gongo.NewConfiguredMultiRobot(conf)
+		r, err := gongo.NewConfiguredMultiRobot(conf)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unexpected error: %v", err)
+		}
+
 		color := gongo.Black
 		for i := 0; i < moveCount; i++ {
 			r.GenMove(color)
