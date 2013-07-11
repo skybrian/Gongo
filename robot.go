@@ -12,6 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -27,7 +28,7 @@ type randomness struct {
 
 func (r *randomness) Intn(n int) int { return int(r.src.Int63()&0x7FFFFFFF) % n }
 
-var defaultRandomness = randomness{src: rand.NewSource(time.Now().Unix())}
+var defaultRandomness = &randomness{src: rand.NewSource(time.Now().Unix())}
 
 type Config struct {
 	BoardSize   int
@@ -41,6 +42,10 @@ func NewRobot(boardSize int) GoRobot {
 }
 
 func NewConfiguredRobot(config Config) GoRobot {
+	return newRobot(config)
+}
+
+func newRobot(config Config) *robot {
 	result := new(robot)
 	result.board = new(board)
 	result.scratchBoard = new(board)
@@ -58,7 +63,7 @@ func NewConfiguredRobot(config Config) GoRobot {
 	if config.Randomness != nil {
 		result.randomness = config.Randomness
 	} else {
-		result.randomness = &defaultRandomness
+		result.randomness = defaultRandomness
 	}
 	if config.Log != nil {
 		result.log = config.Log
@@ -217,7 +222,7 @@ type board struct {
 	dirOffset  [4]pt // amount to add to a pt to move in each cardinal direction
 	diagOffset [4]pt // amount to add to a pt to move in each diagonal direction
 
-	cells          [maxStride*maxRowCount + 1]cell
+	cells          []cell
 	allPoints      []pt  // List of all points on the board. (Skips barrier cells.)
 	neighborCounts []int // Holds counts of how many neighbors a cell has (4 - liberties)
 
@@ -231,9 +236,10 @@ type board struct {
 	candidates  []pt // moves to choose from; used in playRandomGame.
 }
 
-func (b *board) clearBoard(newSize int) (ok bool) {
+func newBoard(newSize int) (b *board, ok bool) {
+	b = new(board)
 	if newSize > maxBoardSize {
-		return false
+		return nil, false
 	}
 	b.size = newSize
 	b.stride = newSize + 1
@@ -246,6 +252,7 @@ func (b *board) clearBoard(newSize int) (ok bool) {
 	b.diagOffset[2] = pt(-b.stride - 1) // sw
 	b.diagOffset[3] = pt(-b.stride + 1) // se
 
+	b.cells = make([]cell, (b.stride)*(b.stride+1)+1)
 	b.allPoints = make([]pt, b.size*b.size)
 	b.neighborCounts = make([]int, len(b.cells))
 
@@ -276,7 +283,7 @@ func (b *board) clearBoard(newSize int) (ok bool) {
 
 	b.chainPoints = make([]pt, len(b.allPoints))
 	b.candidates = make([]pt, len(b.allPoints))
-	return true
+	return b, true
 }
 
 func (b board) GetBoardSize() int { return b.size }
@@ -685,7 +692,6 @@ func (b *board) wouldFillEye(move pt) bool {
 func (r *robot) String() {}
 
 // === Implementation of GoRobot interface ===
-
 type robot struct {
 	board       *board
 	randomness  Randomness
@@ -699,20 +705,44 @@ type robot struct {
 
 	// Scratch variables, reused to avoid GC
 	scratchBoard *board
+	candCount    int   // candidates considered
 	candidates   []pt  // moves to choose from; used in GenMove.
 	wins, hits   []int // results of findWins()
+	updated      []int // used in findWins
 }
 
 func (r *robot) SetBoardSize(newSize int) bool {
-	if !r.board.clearBoard(newSize) {
+	b, ok := newBoard(newSize)
+	if !ok {
 		return false
 	}
-	r.scratchBoard.clearBoard(newSize)
+	sb, ok := newBoard(newSize)
+	if !ok {
+		return false
+	}
+	r.candCount = 0
+	r.board = b
+	r.scratchBoard = sb
 	r.boardHashes = make([]int64, len(r.board.moves))
 	r.candidates = make([]pt, len(r.board.allPoints))
 	r.wins = make([]int, len(r.board.cells))
 	r.hits = make([]int, len(r.board.cells))
+	r.updated = make([]int, len(r.board.cells))
 	return true
+}
+
+func (r *robot) Debug() string {
+	hc := make([]string, r.candCount)
+	for i := 0; i < r.candCount; i++ {
+		x, y := r.board.getCoords(r.candidates[i])
+		s, ok := vertexToString(x, y)
+		if !ok {
+			hc[i] = "Pass"
+		} else {
+			hc[i] = s
+		}
+	}
+	return fmt.Sprintf("cells :%v\npoints: %v\nmoves: %v\nhits: %v\nwins: %v\nrcand: %v\nhcand: %v\n", r.board.cells, r.board.allPoints, r.board.moves[0:r.board.moveCount], r.hits, r.wins, r.candidates, hc)
 }
 
 func (r *robot) ClearBoard() { r.SetBoardSize(r.board.size) }
@@ -737,7 +767,24 @@ func (r *robot) Play(color Color, x, y int) (ok bool, message string) {
 	return result.toPlayResult(captures)
 }
 
+// Generate a move
 func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
+	r.genMoves(color) // generates candidate moves
+	bestMove := r.candidates[0]
+	result, _ := r.makeMove(bestMove)
+	if result == played {
+		x, y := r.board.getCoords(bestMove)
+		return x, y, Played
+	} else if result == passed {
+		return 0, 0, Passed
+	}
+	panic(fmt.Sprintf("can't make generated move? %s\n%v", result, r.Debug()))
+}
+
+// Uses findWins to evaluate win percentage of all available moves
+// after calling candidates will be sorted by wincount
+// (samplesize breaks ties)
+func (r *robot) genMoves(color Color) {
 	if !r.board.isMyTurn(color) {
 		// GTP protocol allows generating a move by either side;
 		// treat as if the other player passed.
@@ -753,42 +800,27 @@ func (r *robot) GenMove(color Color) (x, y int, moveResult MoveResult) {
 	r.log.Printf("playouts/second: %.0f", float64(r.sampleCount)/elapsedTimeSecs)
 
 	// create a list of possible moves
-	candidates := r.candidates // reuse array to avoid allocation
 	candidateCount := 0
 	for _, pt := range r.board.allPoints {
 		if r.hits[pt] > 0 && !r.board.wouldFillEye(pt) && r.checkLegalMove(pt) == played {
-			candidates[candidateCount] = pt
+			r.candidates[candidateCount] = pt
 			candidateCount++
 		}
 	}
 
-	// choose best move by iterating through candidates
-	// (randomly permuted to break ties randomly)
-	bestMove := PASS
-	bestScore := float64(-99.0)
-	for i := 0; i < candidateCount; i++ {
-
-		// permute
-		randomIndex := i + rand.Intn(candidateCount-i)
-		pt := r.candidates[randomIndex]
-		r.candidates[randomIndex], r.candidates[i] = r.candidates[i], pt
-
-		score := float64(r.wins[pt]) / float64(r.hits[pt])
-		if score > bestScore {
-			bestMove = pt
-			bestScore = score
+	// sort candidates by win ratio, sample size breaks ties
+	// sort in reverse order (greatest value first)
+	sortfunc := func(p1, p2 pt) bool {
+		p1score := float64(r.wins[p1]) / float64(r.hits[p1])
+		p2score := float64(r.wins[p2]) / float64(r.hits[p2])
+		if p1score == p2score {
+			return r.hits[p1] > r.hits[p2]
 		}
+		return p1score > p2score
 	}
 
-	result, _ := r.makeMove(bestMove)
-
-	if result == played {
-		x, y := r.board.getCoords(bestMove)
-		return x, y, Played
-	} else if result == passed {
-		return 0, 0, Passed
-	}
-	panic(fmt.Sprintf("can't make generated move? %s", result))
+	ptsortfunc(sortfunc).Sort(r.candidates[:candidateCount])
+	r.candCount = candidateCount
 }
 
 func (r *robot) GetBoardSize() int { return r.board.GetBoardSize() }
@@ -830,9 +862,10 @@ func (r *robot) checkLegalMove(move pt) (result moveResult) {
 }
 
 // Use Monte-Carlo simulation to find a win rate for each point on the board.
+// returns win percentage
 // On return, r.wins[pt] will have the number of wins minus losses associated
 // with a point and r.hits[pt] will have the number of samples for that point.
-func (r *robot) findWins(numSamples int) {
+func (r *robot) findWins(numSamples int) (ratio float64) {
 	// clear statistics
 	for i := range r.wins {
 		r.wins[i] = 0
@@ -840,6 +873,7 @@ func (r *robot) findWins(numSamples int) {
 	}
 
 	sb := r.scratchBoard
+	var wins, draws int
 	for i := 0; i < numSamples; i++ {
 		sb.copyFrom(r.board)
 		sb.playRandomGame(r.randomness)
@@ -853,26 +887,106 @@ func (r *robot) findWins(numSamples int) {
 			winAmount = -1
 		} else {
 			winAmount = 0 // a draw
+			draws++
 		}
 		if r.board.getFriendlyStone() == WHITE {
 			winAmount = -winAmount
 		}
+		if winAmount > 0 {
+			wins++
+		}
 
 		// For each point where the first player to play was the current
 		// player, add winAmount. (All Moves As First heuristic)
+		for i := range r.updated {
+			r.updated[i] = 0
+		}
 	scoring:
 		for i := r.board.moveCount; i < sb.moveCount; i += 2 {
 			pt := sb.moves[i] & MOVE_TO_PT_MASK
-
-			// check that it hasn't been played yet
-			for j := r.board.moveCount; j < i; j++ {
-				if sb.moves[j] == pt {
+			/*
+				if pt == 0 {
+					// skip passes
 					continue scoring
 				}
+			*/
+
+			// check that it hasn't been played yet
+			if r.updated[pt] != 0 {
+				continue scoring
 			}
 
+			r.updated[pt] = 1
 			r.wins[pt] += winAmount
 			r.hits[pt]++
 		}
 	}
+	if draws == numSamples {
+		// avoid division by zero
+		return 0.5
+	}
+	ratio = float64(wins) / float64(numSamples-draws)
+	return ratio
+}
+
+// Use Monte-Carlo simulation to evaluate a position, plays numSamples games
+// and returns win ratio
+func (r *robot) evaluate(numSamples int) (ratio float64) {
+	sb := r.scratchBoard
+	var wins, draws int
+	for i := 0; i < numSamples; i++ {
+		sb.copyFrom(r.board)
+		sb.playRandomGame(r.randomness)
+		score := sb.getEasyScore()
+		var winAmount int
+		if float64(score) > r.komi {
+			winAmount = 1
+		} else if float64(score) < r.komi {
+			winAmount = -1
+		} else {
+			winAmount = 0 // a draw
+			draws++
+		}
+		if r.board.getFriendlyStone() == WHITE {
+			winAmount = -winAmount
+		}
+		if winAmount > 0 {
+			wins++
+		}
+	}
+	ratio = float64(wins) / float64(numSamples-draws)
+	return ratio
+}
+
+// the following methods are needed to sort a slice of points using the Sort package
+
+type ptsortfunc func(p1, p2 pt) bool
+
+func (by ptsortfunc) Sort(points []pt) {
+	ps := &ptSorter{
+		points: points,
+		by:     by, // The Sort method's receiver is the function (closure) that defines the sort order.
+	}
+	sort.Sort(ps)
+}
+
+// ptSorter joins a By function and a slice of points to be sorted.
+type ptSorter struct {
+	points []pt
+	by     func(p1, p2 pt) bool // Closure used in the Less method.
+}
+
+// Len is part of sort.Interface.
+func (s *ptSorter) Len() int {
+	return len(s.points)
+}
+
+// Swap is part of sort.Interface.
+func (s *ptSorter) Swap(i, j int) {
+	s.points[i], s.points[j] = s.points[j], s.points[i]
+}
+
+// Less is part of sort.Interface. It is implemented by calling the "by" closure in the sorter.
+func (s *ptSorter) Less(i, j int) bool {
+	return s.by(s.points[i], s.points[j])
 }
