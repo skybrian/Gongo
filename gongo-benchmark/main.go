@@ -8,7 +8,7 @@ import (
 )
 
 func UsageError() {
-	fmt.Fprintf(os.Stderr, "Usage: %v [moveCount]\n\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "Usage: %v [[moveCount] gameCount]\n\n", os.Args[0])
 	os.Exit(1)
 }
 
